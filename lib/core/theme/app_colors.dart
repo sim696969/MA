@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
+  // Pure Black & White Clean Theme Tones
+  static const Color pureBlack = Color(0xFF0F172A);
+  static const Color pureWhite = Color(0xFFFFFFFF);
+
   // Slate / Zinc Tones (Shadcn)
   static const Color slate50 = Color(0xFFF8FAFC);
   static const Color slate100 = Color(0xFFF1F5F9);
@@ -14,23 +18,24 @@ class AppColors {
   static const Color slate900 = Color(0xFF0F172A);
   static const Color slate950 = Color(0xFF020617);
 
-  // Pink Accent from Mockup
-  static const Color pinkPrimary = Color(0xFFED4C78);
-  static const Color pinkLight = Color(0xFFFFF0F4);
-  static const Color pinkBorder = Color(0xFFFFD6E0);
-  static const Color pinkGradientStart = Color(0xFFF0527F);
-  static const Color pinkGradientEnd = Color(0xFFE53965);
+  // Accent Tones
+  static const Color accentBlack = Color(0xFF000000);
+  static const Color accentLight = Color(0xFFF4F4F5);
+  static const Color accentBorder = Color(0xFFE4E4E7);
 
-  // Luxury Accents
-  static const Color champagneGold = Color(0xFFD4AF37);
-  static const Color roseGold = Color(0xFFB76E79);
+  // Pink Accent (kept as option)
+  static const Color pinkPrimary = Color(0xFF0F172A); // Black theme accent
+  static const Color pinkLight = Color(0xFFF4F4F5);
+  static const Color pinkBorder = Color(0xFFE4E4E7);
+  static const Color pinkGradientStart = Color(0xFF18181B);
+  static const Color pinkGradientEnd = Color(0xFF000000);
 
   // Backgrounds
-  static const Color backgroundLight = Color(0xFFFAFAFA);
+  static const Color backgroundLight = Color(0xFFFFFFFF);
   static const Color backgroundDark = slate950;
 
   // Primary
-  static const Color primary = pinkPrimary;
+  static const Color primary = pureBlack;
   static const Color onPrimary = Colors.white;
 
   // Borders
