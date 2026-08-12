@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../widgets/wedify_card.dart';
 
 class LayoutPlannerScreen extends StatefulWidget {
   const LayoutPlannerScreen({super.key});
@@ -111,9 +110,9 @@ class _LayoutPlannerScreenState extends State<LayoutPlannerScreen> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: tool.color.withOpacity(0.1),
+              color: tool.color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: tool.color.withOpacity(0.3)),
+              border: Border.all(color: tool.color.withValues(alpha: 0.3)),
             ),
             child: Icon(tool.icon, color: tool.color),
           ),
@@ -128,7 +127,7 @@ class _LayoutPlannerScreenState extends State<LayoutPlannerScreen> {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: item.tool.color.withOpacity(0.2),
+        color: item.tool.color.withValues(alpha: 0.2),
         border: Border.all(color: item.tool.color),
         borderRadius: BorderRadius.circular(item.tool.name.contains("Round") ? 100 : 4),
       ),

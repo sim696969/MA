@@ -54,13 +54,13 @@ class _InvitationEditorScreenState extends State<InvitationEditorScreen> {
                 borderRadius: BorderRadius.circular(12),
                 image: DecorationImage(image: NetworkImage(widget.template.imageUrl), fit: BoxFit.cover),
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 20, offset: const Offset(0, 10)),
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 20, offset: const Offset(0, 10)),
                 ],
               ),
               child: Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
-                  color: Colors.black.withOpacity(0.3),
+                  color: Colors.black.withValues(alpha: 0.3),
                 ),
                 child: Center(
                   child: Column(

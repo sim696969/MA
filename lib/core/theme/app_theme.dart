@@ -10,12 +10,11 @@ class AppTheme {
       primaryColor: AppColors.primary,
       scaffoldBackgroundColor: AppColors.backgroundLight,
       textTheme: GoogleFonts.interTextTheme(ThemeData.light().textTheme),
-      colorScheme: ColorScheme.light(
+      colorScheme: const ColorScheme.light(
         primary: AppColors.primary,
         onPrimary: AppColors.onPrimary,
         secondary: AppColors.champagneGold,
         surface: Colors.white,
-        background: AppColors.backgroundLight,
         outline: AppColors.borderLight,
       ),
       appBarTheme: AppBarTheme(
@@ -27,7 +26,7 @@ class AppTheme {
           fontSize: 18,
           fontWeight: FontWeight.w600,
         ),
-        iconTheme: IconThemeData(color: AppColors.slate900),
+        iconTheme: const IconThemeData(color: AppColors.slate900),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
@@ -48,15 +47,15 @@ class AppTheme {
         fillColor: Colors.white,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: AppColors.borderLight),
+          borderSide: const BorderSide(color: AppColors.borderLight),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: AppColors.borderLight),
+          borderSide: const BorderSide(color: AppColors.borderLight),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: AppColors.primary, width: 1),
+          borderSide: const BorderSide(color: AppColors.primary, width: 1),
         ),
         hintStyle: GoogleFonts.inter(
           color: AppColors.slate400,
@@ -73,12 +72,11 @@ class AppTheme {
       primaryColor: Colors.white,
       scaffoldBackgroundColor: AppColors.backgroundDark,
       textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
-      colorScheme: ColorScheme.dark(
+      colorScheme: const ColorScheme.dark(
         primary: Colors.white,
         onPrimary: AppColors.slate900,
         secondary: AppColors.champagneGold,
         surface: AppColors.slate900,
-        background: AppColors.backgroundDark,
         outline: AppColors.borderDark,
       ),
       appBarTheme: AppBarTheme(
@@ -90,7 +88,7 @@ class AppTheme {
           fontSize: 18,
           fontWeight: FontWeight.w600,
         ),
-        iconTheme: IconThemeData(color: Colors.white),
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
@@ -111,15 +109,15 @@ class AppTheme {
         fillColor: AppColors.slate900,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: AppColors.borderDark),
+          borderSide: const BorderSide(color: AppColors.borderDark),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: AppColors.borderDark),
+          borderSide: const BorderSide(color: AppColors.borderDark),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: Colors.white, width: 1),
+          borderSide: const BorderSide(color: Colors.white, width: 1),
         ),
         hintStyle: GoogleFonts.inter(
           color: AppColors.slate500,

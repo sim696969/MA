@@ -53,7 +53,7 @@ class _VenueFinderScreenState extends State<VenueFinderScreen> {
               children: [
                 Expanded(
                   child: DropdownButtonFormField<String>(
-                    value: _selectedState,
+                    initialValue: _selectedState,
                     decoration: const InputDecoration(
                       contentPadding: EdgeInsets.symmetric(horizontal: 12),
                       hintText: "Select State",

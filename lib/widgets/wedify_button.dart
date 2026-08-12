@@ -34,18 +34,18 @@ class WedifyButton extends StatelessWidget {
           style: OutlinedButton.styleFrom(
             side: BorderSide(color: theme.colorScheme.outline),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            foregroundColor: theme.colorScheme.onBackground,
+            foregroundColor: theme.colorScheme.onSurface,
           ),
-          child: _buildContent(theme.colorScheme.onBackground),
+          child: _buildContent(theme.colorScheme.onSurface),
         );
       case WedifyButtonStyle.ghost:
         return TextButton(
           onPressed: isLoading ? null : onPressed,
           style: TextButton.styleFrom(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            foregroundColor: theme.colorScheme.onBackground,
+            foregroundColor: theme.colorScheme.onSurface,
           ),
-          child: _buildContent(theme.colorScheme.onBackground),
+          child: _buildContent(theme.colorScheme.onSurface),
         );
     }
   }
