@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  // Slate Tones
+  // Slate / Zinc Tones (Shadcn)
   static const Color slate50 = Color(0xFFF8FAFC);
   static const Color slate100 = Color(0xFFF1F5F9);
   static const Color slate200 = Color(0xFFE2E8F0);
@@ -14,16 +14,23 @@ class AppColors {
   static const Color slate900 = Color(0xFF0F172A);
   static const Color slate950 = Color(0xFF020617);
 
+  // Pink Accent from Mockup
+  static const Color pinkPrimary = Color(0xFFED4C78);
+  static const Color pinkLight = Color(0xFFFFF0F4);
+  static const Color pinkBorder = Color(0xFFFFD6E0);
+  static const Color pinkGradientStart = Color(0xFFF0527F);
+  static const Color pinkGradientEnd = Color(0xFFE53965);
+
   // Luxury Accents
   static const Color champagneGold = Color(0xFFD4AF37);
   static const Color roseGold = Color(0xFFB76E79);
 
   // Backgrounds
-  static const Color backgroundLight = slate50;
+  static const Color backgroundLight = Color(0xFFFAFAFA);
   static const Color backgroundDark = slate950;
 
   // Primary
-  static const Color primary = slate900;
+  static const Color primary = pinkPrimary;
   static const Color onPrimary = Colors.white;
 
   // Borders

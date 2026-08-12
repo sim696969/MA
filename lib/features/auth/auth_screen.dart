@@ -1,6 +1,7 @@
 import 'package:animate_do/animate_do.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import '../../core/theme/app_colors.dart';
 import '../home/home_screen.dart';
 
 class AuthScreen extends StatefulWidget {
@@ -29,7 +30,7 @@ class _AuthScreenState extends State<AuthScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Welcome, ${account.displayName ?? account.email}!'),
-            backgroundColor: Colors.green,
+            backgroundColor: AppColors.pinkPrimary,
           ),
         );
         _navigateToHome();
@@ -67,183 +68,212 @@ class _AuthScreenState extends State<AuthScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            colors: [
-              Color(0xFF121212),
-              Color(0xFF1C1C1C),
-              Color(0xFF2C2C2C),
-            ],
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            const SizedBox(height: 80),
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  FadeInUp(
-                    duration: const Duration(milliseconds: 1000),
-                    child: const Text(
-                      "Login",
-                      style: TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.bold),
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              const SizedBox(height: 30),
+              // Brand Logo Header
+              Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 10,
+                      height: 10,
+                      decoration: const BoxDecoration(
+                        color: AppColors.pinkPrimary,
+                        shape: BoxShape.circle,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                  FadeInUp(
-                    duration: const Duration(milliseconds: 1300),
-                    child: const Text(
-                      "Welcome Back",
-                      style: TextStyle(color: Colors.white70, fontSize: 18),
+                    const SizedBox(width: 8),
+                    const Text(
+                      "W E D I F Y",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 4.0,
+                        color: AppColors.slate900,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 20),
-            Expanded(
-              child: Container(
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(60),
-                    topRight: Radius.circular(60),
+              const SizedBox(height: 50),
+              FadeInUp(
+                duration: const Duration(milliseconds: 800),
+                child: const Text(
+                  "Welcome Back",
+                  style: TextStyle(
+                    color: AppColors.slate900,
+                    fontSize: 32,
+                    fontWeight: FontWeight.w800,
+                    fontFamily: 'Plus Jakarta Sans',
                   ),
                 ),
-                child: SingleChildScrollView(
-                  child: Padding(
-                    padding: const EdgeInsets.all(30),
-                    child: Column(
-                      children: <Widget>[
-                        const SizedBox(height: 40),
-                        FadeInUp(
-                          duration: const Duration(milliseconds: 1400),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(10),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Color.fromRGBO(0, 0, 0, 0.15),
-                                  blurRadius: 20,
-                                  offset: Offset(0, 10),
-                                )
-                              ],
-                            ),
-                            child: Column(
-                              children: <Widget>[
-                                Container(
-                                  padding: const EdgeInsets.all(10),
-                                  decoration: BoxDecoration(
-                                    border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
-                                  ),
-                                  child: TextField(
-                                    controller: _emailController,
-                                    decoration: const InputDecoration(
-                                      hintText: "Email or Phone number",
-                                      hintStyle: TextStyle(color: Colors.grey),
-                                      border: InputBorder.none,
-                                    ),
-                                  ),
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.all(10),
-                                  decoration: BoxDecoration(
-                                    border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
-                                  ),
-                                  child: TextField(
-                                    controller: _passwordController,
-                                    obscureText: true,
-                                    decoration: const InputDecoration(
-                                      hintText: "Password",
-                                      hintStyle: TextStyle(color: Colors.grey),
-                                      border: InputBorder.none,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
+              ),
+              const SizedBox(height: 8),
+              FadeInUp(
+                duration: const Duration(milliseconds: 1000),
+                child: const Text(
+                  "Sign in to continue planning your perfect wedding",
+                  style: TextStyle(color: AppColors.slate500, fontSize: 15),
+                ),
+              ),
+              const SizedBox(height: 40),
+              FadeInUp(
+                duration: const Duration(milliseconds: 1200),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppColors.slate200),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.03),
+                        blurRadius: 16,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: <Widget>[
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                        child: TextField(
+                          controller: _emailController,
+                          decoration: const InputDecoration(
+                            hintText: "Email or Phone number",
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            icon: Icon(Icons.email_outlined, color: AppColors.slate400, size: 20),
                           ),
                         ),
-                        const SizedBox(height: 30),
-                        FadeInUp(
-                          duration: const Duration(milliseconds: 1500),
-                          child: GestureDetector(
-                            onTap: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text("Password reset link sent to email.")),
-                              );
-                            },
-                            child: const Text(
-                              "Forgot Password?",
-                              style: TextStyle(color: Colors.grey),
-                            ),
+                      ),
+                      const Divider(height: 1, color: AppColors.slate100),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                        child: TextField(
+                          controller: _passwordController,
+                          obscureText: true,
+                          decoration: const InputDecoration(
+                            hintText: "Password",
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            icon: Icon(Icons.lock_outline_rounded, color: AppColors.slate400, size: 20),
                           ),
                         ),
-                        const SizedBox(height: 30),
-                        FadeInUp(
-                          duration: const Duration(milliseconds: 1600),
-                          child: MaterialButton(
-                            onPressed: _navigateToHome,
-                            height: 50,
-                            color: Colors.black,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(50),
-                            ),
-                            child: const Center(
-                              child: Text(
-                                "Login",
-                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 40),
-                        FadeInUp(
-                          duration: const Duration(milliseconds: 1700),
-                          child: const Text(
-                            "Continue with Google",
-                            style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w500),
-                          ),
-                        ),
-                        const SizedBox(height: 25),
-                        FadeInUp(
-                          duration: const Duration(milliseconds: 1800),
-                          child: MaterialButton(
-                            onPressed: _isLoading ? null : _handleGoogleSignIn,
-                            height: 50,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              FadeInUp(
+                duration: const Duration(milliseconds: 1300),
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: GestureDetector(
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Password reset link sent to email.")),
+                      );
+                    },
+                    child: const Text(
+                      "Forgot Password?",
+                      style: TextStyle(
+                        color: AppColors.pinkPrimary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 32),
+              FadeInUp(
+                duration: const Duration(milliseconds: 1400),
+                child: Container(
+                  width: double.infinity,
+                  height: 54,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(28),
+                    gradient: const LinearGradient(
+                      colors: [AppColors.pinkGradientStart, AppColors.pinkGradientEnd],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.pinkPrimary.withValues(alpha: 0.35),
+                        blurRadius: 16,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: _navigateToHome,
+                      borderRadius: BorderRadius.circular(28),
+                      child: const Center(
+                        child: Text(
+                          "Sign In",
+                          style: TextStyle(
                             color: Colors.white,
-                            elevation: 2,
-                            shape: RoundedRectangleBorder(
-                              side: const BorderSide(color: Colors.black12),
-                              borderRadius: BorderRadius.circular(50),
-                            ),
-                            child: const Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.g_mobiledata,
-                                  size: 32,
-                                  color: Colors.black,
-                                ),
-                                SizedBox(width: 8),
-                                Text(
-                                  "Google Auth",
-                                  style: TextStyle(
-                                    color: Colors.black,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                              ],
-                            ),
+                            fontWeight: FontWeight.w700,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 32),
+              FadeInUp(
+                duration: const Duration(milliseconds: 1500),
+                child: Row(
+                  children: const [
+                    Expanded(child: Divider(color: AppColors.slate200)),
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        "Or continue with",
+                        style: TextStyle(color: AppColors.slate400, fontSize: 13, fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                    Expanded(child: Divider(color: AppColors.slate200)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              FadeInUp(
+                duration: const Duration(milliseconds: 1600),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: OutlinedButton(
+                    onPressed: _isLoading ? null : _handleGoogleSignIn,
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: AppColors.slate200),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+                      backgroundColor: Colors.white,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        Icon(Icons.g_mobiledata, size: 30, color: AppColors.slate900),
+                        SizedBox(width: 8),
+                        Text(
+                          "Google Sign-In",
+                          style: TextStyle(
+                            color: AppColors.slate900,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 15,
                           ),
                         ),
                       ],
@@ -251,8 +281,9 @@ class _AuthScreenState extends State<AuthScreen> {
                   ),
                 ),
               ),
-            )
-          ],
+              const SizedBox(height: 20),
+            ],
+          ),
         ),
       ),
     );
