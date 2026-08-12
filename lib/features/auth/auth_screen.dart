@@ -1,22 +1,28 @@
 import 'package:animate_do/animate_do.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../../core/theme/app_colors.dart';
+import '../../services/database_service.dart';
+import '../../services/auth_session_service.dart';
 import '../home/home_screen.dart';
 
-class AuthScreen extends StatefulWidget {
+class AuthScreen extends ConsumerStatefulWidget {
   const AuthScreen({super.key});
 
   @override
-  State<AuthScreen> createState() => _AuthScreenState();
+  ConsumerState<AuthScreen> createState() => _AuthScreenState();
 }
 
-class _AuthScreenState extends State<AuthScreen> {
+class _AuthScreenState extends ConsumerState<AuthScreen> {
+  bool _isRegistering = false;
+  final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final DatabaseService _dbService = DatabaseService();
 
   final GoogleSignIn _googleSignIn = GoogleSignIn(
-    clientId: '388047327745-hntqvia6b88qajossagfq597jdqr0gu1.apps.googleusercontent.com',
     scopes: ['email', 'profile'],
   );
 
@@ -27,13 +33,29 @@ class _AuthScreenState extends State<AuthScreen> {
     try {
       final GoogleSignInAccount? account = await _googleSignIn.signIn();
       if (account != null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Welcome, ${account.displayName ?? account.email}!'),
-            backgroundColor: AppColors.pinkPrimary,
-          ),
+        // Save/update Google user profile in Firebase Firestore
+        await _dbService.setDocument(
+          collectionPath: 'users',
+          docId: account.id,
+          data: {
+            'name': account.displayName ?? 'User',
+            'email': account.email,
+            'photoUrl': account.photoUrl,
+            'authProvider': 'google',
+            'lastLogin': DateTime.now().toIso8601String(),
+          },
+          merge: true,
         );
-        _navigateToHome();
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Welcome, ${account.displayName ?? account.email}!'),
+              backgroundColor: AppColors.pinkPrimary,
+            ),
+          );
+          _navigateToHome();
+        }
       }
     } catch (error) {
       if (mounted) {
@@ -51,7 +73,99 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
-  void _navigateToHome() {
+  Future<void> _handleSubmit() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please fill in email and password.'),
+          backgroundColor: Colors.orangeAccent,
+        ),
+      );
+      return;
+    }
+
+    if (_isRegistering) {
+      final name = _nameController.text.trim();
+      final phone = _phoneController.text.trim();
+
+      if (name.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please enter your full name.'),
+            backgroundColor: Colors.orangeAccent,
+          ),
+        );
+        return;
+      }
+
+      setState(() => _isLoading = true);
+      try {
+        // Save user registration data in Firebase Firestore
+        await _dbService.addDocument(
+          collectionPath: 'users',
+          data: {
+            'name': name,
+            'email': email,
+            'phone': phone,
+            'role': 'couple', // default user role for wedding planning
+            'authProvider': 'email',
+            'createdAt': DateTime.now().toIso8601String(),
+          },
+        );
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Account created successfully! Welcome to Wedify.'),
+              backgroundColor: AppColors.pinkPrimary,
+            ),
+          );
+          _navigateToHome();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Registration error: $e'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
+      }
+    } else {
+      // Sign In Flow
+      setState(() => _isLoading = true);
+      try {
+        // Log sign-in activity to Firebase Firestore
+        await _dbService.addDocument(
+          collectionPath: 'login_logs',
+          data: {
+            'email': email,
+            'loginTime': DateTime.now().toIso8601String(),
+            'status': 'success',
+          },
+        );
+
+        if (mounted) {
+          _navigateToHome();
+        }
+      } catch (e) {
+        if (mounted) {
+          _navigateToHome();
+        }
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  void _navigateToHome([String? email]) {
+    ref.read(authStateProvider.notifier).login(email ?? _emailController.text.trim());
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (context) => const HomeScreen()),
@@ -60,7 +174,9 @@ class _AuthScreenState extends State<AuthScreen> {
 
   @override
   void dispose() {
+    _nameController.dispose();
     _emailController.dispose();
+    _phoneController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -75,7 +191,7 @@ class _AuthScreenState extends State<AuthScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              const SizedBox(height: 30),
+              const SizedBox(height: 20),
               // Brand Logo Header
               Center(
                 child: Row(
@@ -102,12 +218,12 @@ class _AuthScreenState extends State<AuthScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 50),
+              const SizedBox(height: 36),
               FadeInUp(
-                duration: const Duration(milliseconds: 800),
-                child: const Text(
-                  "Welcome Back",
-                  style: TextStyle(
+                duration: const Duration(milliseconds: 600),
+                child: Text(
+                  _isRegistering ? "Create Account" : "Welcome Back",
+                  style: const TextStyle(
                     color: AppColors.slate900,
                     fontSize: 32,
                     fontWeight: FontWeight.w800,
@@ -117,15 +233,17 @@ class _AuthScreenState extends State<AuthScreen> {
               ),
               const SizedBox(height: 8),
               FadeInUp(
-                duration: const Duration(milliseconds: 1000),
-                child: const Text(
-                  "Sign in to continue planning your perfect wedding",
-                  style: TextStyle(color: AppColors.slate500, fontSize: 15),
+                duration: const Duration(milliseconds: 700),
+                child: Text(
+                  _isRegistering
+                      ? "Register now to save all your wedding details in Firebase"
+                      : "Sign in to continue planning your perfect wedding",
+                  style: const TextStyle(color: AppColors.slate500, fontSize: 15),
                 ),
               ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 32),
               FadeInUp(
-                duration: const Duration(milliseconds: 1200),
+                duration: const Duration(milliseconds: 800),
                 child: Container(
                   decoration: BoxDecoration(
                     color: Colors.white,
@@ -141,12 +259,29 @@ class _AuthScreenState extends State<AuthScreen> {
                   ),
                   child: Column(
                     children: <Widget>[
+                      if (_isRegistering) ...[
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                          child: TextField(
+                            controller: _nameController,
+                            decoration: const InputDecoration(
+                              hintText: "Full Name",
+                              border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              icon: Icon(Icons.person_outline_rounded, color: AppColors.slate400, size: 20),
+                            ),
+                          ),
+                        ),
+                        const Divider(height: 1, color: AppColors.slate100),
+                      ],
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                         child: TextField(
                           controller: _emailController,
+                          keyboardType: TextInputType.emailAddress,
                           decoration: const InputDecoration(
-                            hintText: "Email or Phone number",
+                            hintText: "Email address",
                             border: InputBorder.none,
                             enabledBorder: InputBorder.none,
                             focusedBorder: InputBorder.none,
@@ -155,6 +290,23 @@ class _AuthScreenState extends State<AuthScreen> {
                         ),
                       ),
                       const Divider(height: 1, color: AppColors.slate100),
+                      if (_isRegistering) ...[
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                          child: TextField(
+                            controller: _phoneController,
+                            keyboardType: TextInputType.phone,
+                            decoration: const InputDecoration(
+                              hintText: "Phone Number (optional)",
+                              border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              icon: Icon(Icons.phone_outlined, color: AppColors.slate400, size: 20),
+                            ),
+                          ),
+                        ),
+                        const Divider(height: 1, color: AppColors.slate100),
+                      ],
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                         child: TextField(
@@ -174,30 +326,32 @@ class _AuthScreenState extends State<AuthScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              FadeInUp(
-                duration: const Duration(milliseconds: 1300),
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: GestureDetector(
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Password reset link sent to email.")),
-                      );
-                    },
-                    child: const Text(
-                      "Forgot Password?",
-                      style: TextStyle(
-                        color: AppColors.pinkPrimary,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
+              if (!_isRegistering)
+                FadeInUp(
+                  duration: const Duration(milliseconds: 900),
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: GestureDetector(
+                      onTap: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("Password reset link sent to email.")),
+                        );
+                      },
+                      child: const Text(
+                        "Forgot Password?",
+                        style: TextStyle(
+                          color: AppColors.pinkPrimary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 24),
+              // Submit Button (Sign In / Register)
               FadeInUp(
-                duration: const Duration(milliseconds: 1400),
+                duration: const Duration(milliseconds: 1000),
                 child: Container(
                   width: double.infinity,
                   height: 54,
@@ -217,25 +371,56 @@ class _AuthScreenState extends State<AuthScreen> {
                   child: Material(
                     color: Colors.transparent,
                     child: InkWell(
-                      onTap: _navigateToHome,
+                      onTap: _isLoading ? null : _handleSubmit,
                       borderRadius: BorderRadius.circular(28),
-                      child: const Center(
-                        child: Text(
-                          "Sign In",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 16,
-                          ),
-                        ),
+                      child: Center(
+                        child: _isLoading
+                            ? const CircularProgressIndicator(color: Colors.white)
+                            : Text(
+                                _isRegistering ? "Create Account" : "Sign In",
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 16,
+                                ),
+                              ),
                       ),
                     ),
                   ),
                 ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 20),
+              // Toggle between Login & Register
               FadeInUp(
-                duration: const Duration(milliseconds: 1500),
+                duration: const Duration(milliseconds: 1100),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      _isRegistering ? "Already have an account? " : "Don't have an account? ",
+                      style: const TextStyle(color: AppColors.slate500, fontSize: 14),
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _isRegistering = !_isRegistering;
+                        });
+                      },
+                      child: Text(
+                        _isRegistering ? "Sign In" : "Register Now",
+                        style: const TextStyle(
+                          color: AppColors.pinkPrimary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              FadeInUp(
+                duration: const Duration(milliseconds: 1200),
                 child: Row(
                   children: const [
                     Expanded(child: Divider(color: AppColors.slate200)),
@@ -250,9 +435,9 @@ class _AuthScreenState extends State<AuthScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
               FadeInUp(
-                duration: const Duration(milliseconds: 1600),
+                duration: const Duration(milliseconds: 1300),
                 child: SizedBox(
                   width: double.infinity,
                   height: 52,
@@ -289,3 +474,4 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 }
+

@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "966955257104",
+    "project_id": "wedify-398b7",
+    "storage_bucket": "wedify-398b7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:966955257104:android:6470e17195f601ac52e995",
+        "android_client_info": {
+          "package_name": "com.example.wedify"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "966955257104-3fb56ush29vi8u7me4ab2eca1v19bbg5.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.wedify",
+            "certificate_hash": "fd73fa36b9da524a722700cf8c872de99ae0a329"
+          }
+        },
+        {
+          "client_id": "966955257104-15c1n046ljquoc6i0ol4if1p2qes3rei.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDKgmrt5ihLkPdXK6tpRXY5UBwJS3fRHLY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "966955257104-15c1n046ljquoc6i0ol4if1p2qes3rei.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "966955257104-poa6e17s2p76335f0i9clpk3raq25loq.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.wedify"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

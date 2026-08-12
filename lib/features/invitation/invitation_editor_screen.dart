@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../services/database_service.dart';
 import '../../widgets/wedify_button.dart';
 import 'invitation_gallery_screen.dart';
 
@@ -13,9 +14,38 @@ class InvitationEditorScreen extends StatefulWidget {
 }
 
 class _InvitationEditorScreenState extends State<InvitationEditorScreen> {
+  final DatabaseService _dbService = DatabaseService();
   final TextEditingController _nameController = TextEditingController(text: "Sarah & John");
   final TextEditingController _dateController = TextEditingController(text: "12th December 2024");
   final TextEditingController _locationController = TextEditingController(text: "Grand Hyatt, KL");
+  bool _isSaving = false;
+
+  Future<void> _saveInvitationToFirestore() async {
+    setState(() => _isSaving = true);
+    try {
+      await _dbService.saveInvitation(
+        coupleNames: _nameController.text,
+        date: _dateController.text,
+        location: _locationController.text,
+        templateId: widget.template.name,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Invitation saved to Firestore!")),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error saving to database: $e")),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
 
   void _shareViaEmail() async {
     final String subject = Uri.encodeComponent("Wedding Invitation: ${_nameController.text}");
@@ -42,7 +72,18 @@ class _InvitationEditorScreenState extends State<InvitationEditorScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Edit Invitation")),
+      appBar: AppBar(
+        title: const Text("Edit Invitation"),
+        actions: [
+          IconButton(
+            icon: _isSaving 
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.cloud_upload_outlined),
+            onPressed: _isSaving ? null : _saveInvitationToFirestore,
+            tooltip: 'Save to Cloud',
+          ),
+        ],
+      ),
       body: SingleChildScrollView(
         child: Column(
           children: [
@@ -102,11 +143,20 @@ class _InvitationEditorScreenState extends State<InvitationEditorScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: WedifyButton(
+                      text: "SAVE TO CLOUD",
+                      onPressed: _saveInvitationToFirestore,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: WedifyButton(
                       text: "SHARE VIA EMAIL",
+                      style: WedifyButtonStyle.ghost,
                       onPressed: _shareViaEmail,
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
                     child: WedifyButton(
@@ -125,3 +175,4 @@ class _InvitationEditorScreenState extends State<InvitationEditorScreen> {
     );
   }
 }
+
