@@ -5,7 +5,7 @@ import '../../widgets/wedify_button.dart';
 import 'invitation_gallery_screen.dart';
 
 class InvitationEditorScreen extends StatefulWidget {
-  final InvitationTemplate template;
+  final InvitationTemplateOption template;
 
   const InvitationEditorScreen({super.key, required this.template});
 

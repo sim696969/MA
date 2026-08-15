@@ -6,15 +6,9 @@ import 'app.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Initialize Firebase once at startup
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
 
-  runApp(
-    const ProviderScope(
-      child: WedifyApp(),
-    ),
-  );
+  // Initialize Firebase once at startup
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  runApp(const ProviderScope(child: WedifyApp()));
 }
