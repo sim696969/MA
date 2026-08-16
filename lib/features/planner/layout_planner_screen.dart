@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/database_service.dart';
+import '../../services/wedding_project_provider.dart';
+import '../../widgets/top_right_toast.dart';
 
 // ─────────────────────────────────────────────
 //  Models
@@ -36,14 +39,15 @@ class PlannerItem {
 //  Screen
 // ─────────────────────────────────────────────
 
-class LayoutPlannerScreen extends StatefulWidget {
+class LayoutPlannerScreen extends ConsumerStatefulWidget {
   const LayoutPlannerScreen({super.key});
 
   @override
-  State<LayoutPlannerScreen> createState() => _LayoutPlannerScreenState();
+  ConsumerState<LayoutPlannerScreen> createState() =>
+      _LayoutPlannerScreenState();
 }
 
-class _LayoutPlannerScreenState extends State<LayoutPlannerScreen>
+class _LayoutPlannerScreenState extends ConsumerState<LayoutPlannerScreen>
     with TickerProviderStateMixin {
   // ── Services ──────────────────────────────
   final DatabaseService _dbService = DatabaseService();
@@ -107,60 +111,101 @@ class _LayoutPlannerScreenState extends State<LayoutPlannerScreen>
   @override
   void initState() {
     super.initState();
-    _loadLayoutFromFirebase();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadLayoutFromFirebase();
+    });
+  }
+
+  bool _isNewEmptyProject() {
+    final project = ref.read(weddingProjectProvider);
+    return !project.isInitialized;
   }
 
   Future<void> _loadLayoutFromFirebase() async {
-    try {
-      final doc = await _dbService.getDocument(
-        collectionPath: 'layouts',
-        docId: 'main_layout',
-      );
-      if (doc.exists && doc.data() != null) {
-        final data = doc.data()!;
-        if (data['items'] != null && data['items'] is List) {
-          final List rawItems = data['items'] as List;
-          final loadedItems = <PlannerItem>[];
-          for (var itemMap in rawItems) {
-            if (itemMap is Map) {
-              final toolName = itemMap['name'] as String?;
-              final tool = _tools.firstWhere(
-                (t) => t.name == toolName,
-                orElse: () => _tools.first,
-              );
-              final dx = (itemMap['dx'] as num?)?.toDouble() ?? 100.0;
-              final dy = (itemMap['dy'] as num?)?.toDouble() ?? 100.0;
-              final isLocked = (itemMap['isLocked'] as bool?) ?? false;
+    if (_isNewEmptyProject()) {
+      if (mounted) {
+        setState(() {
+          _workspaceItems.clear();
+        });
+      }
+      return;
+    }
 
-              loadedItems.add(PlannerItem(
+    try {
+      final project = ref.read(weddingProjectProvider);
+      final projectId = (project.id.isNotEmpty && project.id != 'project_1')
+          ? project.id
+          : 'main_layout';
+
+      var doc = await _dbService.getDocument(
+        collectionPath: 'layouts',
+        docId: projectId,
+      );
+
+      if ((!doc.exists || doc.data() == null) && projectId != 'main_layout') {
+        doc = await _dbService.getDocument(
+          collectionPath: 'layouts',
+          docId: 'main_layout',
+        );
+      }
+
+      if (!doc.exists || doc.data() == null) {
+        if (mounted) {
+          setState(() {
+            _workspaceItems.clear();
+          });
+        }
+        return;
+      }
+
+      final data = doc.data()!;
+      if (data['items'] != null && data['items'] is List) {
+        final List rawItems = data['items'] as List;
+        final loadedItems = <PlannerItem>[];
+        for (var itemMap in rawItems) {
+          if (itemMap is Map) {
+            final toolName = itemMap['name'] as String?;
+            final tool = _tools.firstWhere(
+              (t) => t.name == toolName,
+              orElse: () => _tools.first,
+            );
+            final dx = (itemMap['dx'] as num?)?.toDouble() ?? 100.0;
+            final dy = (itemMap['dy'] as num?)?.toDouble() ?? 100.0;
+            final isLocked = (itemMap['isLocked'] as bool?) ?? false;
+
+            loadedItems.add(
+              PlannerItem(
                 id: _uniqueId(),
                 tool: tool,
                 position: Offset(dx, dy),
                 isLocked: isLocked,
-              ));
-            }
+              ),
+            );
           }
-          if (mounted) {
-            setState(() {
-              _workspaceItems.clear();
-              _workspaceItems.addAll(loadedItems);
-            });
-          }
+        }
+        if (mounted) {
+          setState(() {
+            _workspaceItems.clear();
+            _workspaceItems.addAll(loadedItems);
+          });
         }
       }
     } catch (e) {
       debugPrint('Error loading layout: $e');
+      if (mounted) {
+        setState(() {
+          _workspaceItems.clear();
+        });
+      }
     }
   }
 
   void _addItemFromTool(PlannerTool tool, Offset globalOffset) {
     final localPos = _toCanvasLocal(globalOffset);
     setState(() {
-      _workspaceItems.add(PlannerItem(
-        id: _uniqueId(),
-        tool: tool,
-        position: localPos,
-      ));
+      _workspaceItems.add(
+        PlannerItem(id: _uniqueId(), tool: tool, position: localPos),
+      );
     });
     _autoSaveLayout();
   }
@@ -185,12 +230,14 @@ class _LayoutPlannerScreenState extends State<LayoutPlannerScreen>
 
   void _duplicateItem(PlannerItem item) {
     setState(() {
-      _workspaceItems.add(PlannerItem(
-        id: _uniqueId(),
-        tool: item.tool,
-        position: Offset(item.position.dx + 25, item.position.dy + 25),
-        isLocked: false,
-      ));
+      _workspaceItems.add(
+        PlannerItem(
+          id: _uniqueId(),
+          tool: item.tool,
+          position: Offset(item.position.dx + 25, item.position.dy + 25),
+          isLocked: false,
+        ),
+      );
     });
     _autoSaveLayout();
   }
@@ -200,26 +247,6 @@ class _LayoutPlannerScreenState extends State<LayoutPlannerScreen>
       item.isLocked = !item.isLocked;
     });
     _autoSaveLayout();
-  }
-
-  Future<void> _autoSaveLayout() async {
-    try {
-      final itemsData = _workspaceItems
-          .map((item) => {
-                'name': item.tool.name,
-                'dx': item.position.dx,
-                'dy': item.position.dy,
-                'isLocked': item.isLocked,
-              })
-          .toList();
-
-      await _dbService.saveLayoutItems(
-        layoutId: 'main_layout',
-        items: itemsData,
-      );
-    } catch (e) {
-      debugPrint('Auto-save error: $e');
-    }
   }
 
   void _toggleDock() {
@@ -233,47 +260,121 @@ class _LayoutPlannerScreenState extends State<LayoutPlannerScreen>
   Future<void> _saveLayout() async {
     setState(() => _isSaving = true);
     try {
+      final project = ref.read(weddingProjectProvider);
+      final projectId = (project.id.isNotEmpty && project.id != 'project_1')
+          ? project.id
+          : 'main_layout';
+
       final itemsData = _workspaceItems
-          .map((item) => {
-                'name': item.tool.name,
-                'dx': item.position.dx,
-                'dy': item.position.dy,
-                'isLocked': item.isLocked,
-              })
+          .map(
+            (item) => {
+              'name': item.tool.name,
+              'dx': item.position.dx,
+              'dy': item.position.dy,
+              'isLocked': item.isLocked,
+            },
+          )
           .toList();
 
+      await _dbService.saveLayoutItems(layoutId: projectId, items: itemsData);
       await _dbService.saveLayoutItems(
         layoutId: 'main_layout',
         items: itemsData,
       );
 
+      final layoutSummary = _buildLayoutSummary();
+      const plannerFee = 800.00;
+
+      await ref
+          .read(weddingProjectProvider.notifier)
+          .updatePlannerLayout(
+            layoutSummary: layoutSummary,
+            fee: plannerFee,
+            isCompleted: true,
+          );
+
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Layout saved!',
-                style: GoogleFonts.inter(color: Colors.white)),
-            backgroundColor: const Color(0xFF43C59E),
-            behavior: SnackBarBehavior.floating,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
+        context.showTopRightSuccess('Layout saved to Firebase!');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error saving: $e',
-                style: GoogleFonts.inter(color: Colors.white)),
-            backgroundColor: Colors.redAccent,
-            behavior: SnackBarBehavior.floating,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
+        context.showTopRightError('Error saving layout: $e');
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  String _buildLayoutSummary() {
+    if (_workspaceItems.isEmpty) return 'Empty Layout (0 items)';
+    final roundTables = _workspaceItems
+        .where((i) => i.tool.name.contains('Round'))
+        .length;
+    final rectTables = _workspaceItems
+        .where((i) => i.tool.name.contains('Rect'))
+        .length;
+    final stages = _workspaceItems
+        .where((i) => i.tool.name.contains('Stage'))
+        .length;
+    final arches = _workspaceItems
+        .where((i) => i.tool.name.contains('Floral'))
+        .length;
+
+    final parts = <String>[];
+    if (roundTables > 0) parts.add('$roundTables Round Tables');
+    if (rectTables > 0) parts.add('$rectTables Rect Tables');
+    if (stages > 0) parts.add('$stages Stage${stages > 1 ? 's' : ''}');
+    if (arches > 0) parts.add('$arches Floral Arch${arches > 1 ? 'es' : ''}');
+    final total = _workspaceItems.length;
+    parts.add('$total total items');
+    return parts.join(', ');
+  }
+
+  Future<void> _autoSaveLayout() async {
+    try {
+      final project = ref.read(weddingProjectProvider);
+      final projectId = (project.id.isNotEmpty && project.id != 'project_1')
+          ? project.id
+          : 'main_layout';
+
+      final itemsData = _workspaceItems
+          .map(
+            (item) => {
+              'name': item.tool.name,
+              'dx': item.position.dx,
+              'dy': item.position.dy,
+              'isLocked': item.isLocked,
+            },
+          )
+          .toList();
+
+      await _dbService.saveLayoutItems(layoutId: projectId, items: itemsData);
+      await _dbService.saveLayoutItems(
+        layoutId: 'main_layout',
+        items: itemsData,
+      );
+    } catch (e) {
+      debugPrint('Auto-save error: $e');
+    }
+  }
+
+  Future<void> _handleBackNavigation() async {
+    final projectBefore = ref.read(weddingProjectProvider);
+    final hasItems = _workspaceItems.isNotEmpty;
+
+    if (hasItems && !projectBefore.isPlannerCompleted) {
+      await _saveLayout();
+    }
+
+    final projectAfter = ref.read(weddingProjectProvider);
+    final result = <String, dynamic>{
+      'layoutSummary':
+          projectAfter.plannerLayoutSummary ?? _buildLayoutSummary(),
+      'fee': projectAfter.plannerFee > 0 ? projectAfter.plannerFee : 800.00,
+    };
+
+    if (mounted) {
+      Navigator.of(context).pop(result);
     }
   }
 
@@ -281,8 +382,11 @@ class _LayoutPlannerScreenState extends State<LayoutPlannerScreen>
   //  Item context menu (Long press & Right Click)
   // ─────────────────────────────────────────
 
-  void _showItemContextMenu(BuildContext context, PlannerItem item,
-      Offset tapPosition) async {
+  void _showItemContextMenu(
+    BuildContext context,
+    PlannerItem item,
+    Offset tapPosition,
+  ) async {
     final RenderBox overlay =
         Overlay.of(context).context.findRenderObject() as RenderBox;
 
@@ -323,8 +427,11 @@ class _LayoutPlannerScreenState extends State<LayoutPlannerScreen>
           value: 'duplicate',
           child: Row(
             children: [
-              const Icon(Icons.copy_rounded,
-                  color: Color(0xFF43C59E), size: 20),
+              const Icon(
+                Icons.copy_rounded,
+                color: Color(0xFF43C59E),
+                size: 20,
+              ),
               const SizedBox(width: 10),
               Text(
                 'Duplicate',
@@ -342,12 +449,19 @@ class _LayoutPlannerScreenState extends State<LayoutPlannerScreen>
           value: 'delete',
           child: Row(
             children: [
-              const Icon(Icons.delete_outline, color: Colors.redAccent,
-                  size: 20),
+              const Icon(
+                Icons.delete_outline,
+                color: Colors.redAccent,
+                size: 20,
+              ),
               const SizedBox(width: 10),
-              Text('Remove',
-                  style: GoogleFonts.inter(
-                      color: Colors.redAccent, fontWeight: FontWeight.w600)),
+              Text(
+                'Remove',
+                style: GoogleFonts.inter(
+                  color: Colors.redAccent,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ],
           ),
         ),
@@ -371,46 +485,47 @@ class _LayoutPlannerScreenState extends State<LayoutPlannerScreen>
   Widget build(BuildContext context) {
     final bool isDraggingPlacedItem = _draggingItem != null;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF4F6FB),
-      appBar: _buildAppBar(),
-      body: Stack(
-        children: [
-          // ── 1. Full-screen canvas ─────────
-          _buildCanvas(),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _handleBackNavigation();
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF4F6FB),
+        appBar: _buildAppBar(),
+        body: Stack(
+          children: [
+            // ── 1. Full-screen canvas ─────────
+            _buildCanvas(),
 
-          // ── 2. Trash zone (slides in when dragging a placed item) ──
-          AnimatedSlide(
-            offset: isDraggingPlacedItem ? Offset.zero : const Offset(0, -1),
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOutCubic,
-            child: AnimatedOpacity(
-              opacity: isDraggingPlacedItem ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 250),
-              child: _buildTrashZone(),
+            // ── 2. Trash zone (slides in when dragging a placed item) ──
+            AnimatedSlide(
+              offset: isDraggingPlacedItem ? Offset.zero : const Offset(0, -1),
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOutCubic,
+              child: AnimatedOpacity(
+                opacity: isDraggingPlacedItem ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 250),
+                child: _buildTrashZone(),
+              ),
             ),
-          ),
 
-          // ── 3. Bottom dock ────────────────
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: _buildBottomDock(),
-          ),
+            // ── 3. Bottom dock ────────────────
+            Positioned(left: 0, right: 0, bottom: 0, child: _buildBottomDock()),
 
-          // ── 4. Dock toggle FAB-style handle ──
-          AnimatedPositioned(
-            duration: const Duration(milliseconds: 350),
-            curve: Curves.easeOutCubic,
-            left: 0,
-            right: 0,
-            bottom: _isDockVisible
-                ? _dockExpandedHeight
-                : _dockCollapsedHeight,
-            child: _buildDockHandle(),
-          ),
-        ],
+            // ── 4. Dock toggle FAB-style handle ──
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 350),
+              curve: Curves.easeOutCubic,
+              left: 0,
+              right: 0,
+              bottom: _isDockVisible
+                  ? _dockExpandedHeight
+                  : _dockCollapsedHeight,
+              child: _buildDockHandle(),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -426,9 +541,12 @@ class _LayoutPlannerScreenState extends State<LayoutPlannerScreen>
       surfaceTintColor: Colors.white,
       titleSpacing: 0,
       leading: IconButton(
-        icon: const Icon(Icons.arrow_back_ios_new_rounded,
-            color: Color(0xFF1A1A2E), size: 20),
-        onPressed: () => Navigator.maybePop(context),
+        icon: const Icon(
+          Icons.arrow_back_ios_new_rounded,
+          color: Color(0xFF1A1A2E),
+          size: 20,
+        ),
+        onPressed: _handleBackNavigation,
       ),
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -443,17 +561,16 @@ class _LayoutPlannerScreenState extends State<LayoutPlannerScreen>
           ),
           Text(
             '${_workspaceItems.length} item${_workspaceItems.length == 1 ? '' : 's'} placed',
-            style: GoogleFonts.inter(
-              color: Colors.grey[500],
-              fontSize: 12,
-            ),
+            style: GoogleFonts.inter(color: Colors.grey[500], fontSize: 12),
           ),
         ],
       ),
       actions: [
         IconButton(
-          icon: const Icon(Icons.delete_sweep_outlined,
-              color: Color(0xFF1A1A2E)),
+          icon: const Icon(
+            Icons.delete_sweep_outlined,
+            color: Color(0xFF1A1A2E),
+          ),
           tooltip: 'Clear All',
           onPressed: _workspaceItems.isEmpty
               ? null
@@ -462,24 +579,30 @@ class _LayoutPlannerScreenState extends State<LayoutPlannerScreen>
                     context: context,
                     builder: (ctx) => AlertDialog(
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16)),
-                      title: Text('Clear Canvas',
-                          style: GoogleFonts.inter(
-                              fontWeight: FontWeight.w700)),
-                      content: Text('Remove all placed items?',
-                          style: GoogleFonts.inter()),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      title: Text(
+                        'Clear Canvas',
+                        style: GoogleFonts.inter(fontWeight: FontWeight.w700),
+                      ),
+                      content: Text(
+                        'Remove all placed items?',
+                        style: GoogleFonts.inter(),
+                      ),
                       actions: [
                         TextButton(
-                            onPressed: () => Navigator.pop(ctx),
-                            child: const Text('Cancel')),
+                          onPressed: () => Navigator.pop(ctx),
+                          child: const Text('Cancel'),
+                        ),
                         TextButton(
                           onPressed: () {
                             setState(() => _workspaceItems.clear());
                             Navigator.pop(ctx);
                           },
-                          child: const Text('Clear',
-                              style:
-                                  TextStyle(color: Colors.redAccent)),
+                          child: const Text(
+                            'Clear',
+                            style: TextStyle(color: Colors.redAccent),
+                          ),
                         ),
                       ],
                     ),
@@ -494,10 +617,11 @@ class _LayoutPlannerScreenState extends State<LayoutPlannerScreen>
                     width: 20,
                     height: 20,
                     child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Color(0xFF5B8DEF)))
-                : const Icon(Icons.save_rounded,
-                    color: Color(0xFF5B8DEF)),
+                      strokeWidth: 2,
+                      color: Color(0xFF5B8DEF),
+                    ),
+                  )
+                : const Icon(Icons.save_rounded, color: Color(0xFF5B8DEF)),
             tooltip: 'Save Layout',
             onPressed: _isSaving ? null : _saveLayout,
           ),
@@ -531,7 +655,8 @@ class _LayoutPlannerScreenState extends State<LayoutPlannerScreen>
                     child: CustomPaint(
                       painter: GridPainter(
                         lineColor: const Color(0xFFDDE3EE),
-                        highlightColor: (isHovering || itemCandidateData.isNotEmpty)
+                        highlightColor:
+                            (isHovering || itemCandidateData.isNotEmpty)
                             ? const Color(0xFF5B8DEF).withValues(alpha: 0.06)
                             : null,
                       ),
@@ -544,8 +669,11 @@ class _LayoutPlannerScreenState extends State<LayoutPlannerScreen>
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.drag_indicator_rounded,
-                              size: 48, color: Colors.grey[300]),
+                          Icon(
+                            Icons.drag_indicator_rounded,
+                            size: 48,
+                            color: Colors.grey[300],
+                          ),
                           const SizedBox(height: 12),
                           Text(
                             'Drag items from the\nbottom dock to start',
@@ -561,7 +689,9 @@ class _LayoutPlannerScreenState extends State<LayoutPlannerScreen>
                     ),
 
                   // Placed items
-                  ..._workspaceItems.map((item) => _buildPlacedItemWidget(item)),
+                  ..._workspaceItems.map(
+                    (item) => _buildPlacedItemWidget(item),
+                  ),
                 ],
               );
             },
@@ -665,9 +795,7 @@ class _LayoutPlannerScreenState extends State<LayoutPlannerScreen>
                       : Colors.white.withValues(alpha: 0.95),
                   borderRadius: BorderRadius.circular(32),
                   border: Border.all(
-                    color: hovering
-                        ? Colors.redAccent
-                        : Colors.red[200]!,
+                    color: hovering ? Colors.redAccent : Colors.red[200]!,
                     width: hovering ? 0 : 1.5,
                   ),
                   boxShadow: [
@@ -675,7 +803,7 @@ class _LayoutPlannerScreenState extends State<LayoutPlannerScreen>
                       color: Colors.red.withValues(alpha: 0.2),
                       blurRadius: 16,
                       spreadRadius: 2,
-                    )
+                    ),
                   ],
                 ),
                 child: Row(
@@ -733,8 +861,7 @@ class _LayoutPlannerScreenState extends State<LayoutPlannerScreen>
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOutCubic,
           margin: const EdgeInsets.only(bottom: 4),
-          padding:
-              const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(24),
@@ -753,8 +880,11 @@ class _LayoutPlannerScreenState extends State<LayoutPlannerScreen>
                 turns: _isDockVisible ? 0.0 : -0.5,
                 duration: const Duration(milliseconds: 300),
                 curve: Curves.easeOutCubic,
-                child: const Icon(Icons.keyboard_arrow_down_rounded,
-                    size: 20, color: Color(0xFF5B8DEF)),
+                child: const Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  size: 20,
+                  color: Color(0xFF5B8DEF),
+                ),
               ),
               const SizedBox(width: 6),
               Text(
@@ -778,8 +908,7 @@ class _LayoutPlannerScreenState extends State<LayoutPlannerScreen>
 
   Widget _buildBottomDock() {
     return AnimatedSlide(
-      offset:
-          _isDockVisible ? Offset.zero : const Offset(0, 1),
+      offset: _isDockVisible ? Offset.zero : const Offset(0, 1),
       duration: const Duration(milliseconds: 350),
       curve: Curves.easeOutCubic,
       child: AnimatedOpacity(
@@ -789,8 +918,7 @@ class _LayoutPlannerScreenState extends State<LayoutPlannerScreen>
           height: _dockExpandedHeight,
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(24)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.10),
@@ -827,8 +955,7 @@ class _LayoutPlannerScreenState extends State<LayoutPlannerScreen>
                 ),
               ),
               // Safe area padding
-              SizedBox(
-                  height: MediaQuery.of(context).padding.bottom),
+              SizedBox(height: MediaQuery.of(context).padding.bottom),
             ],
           ),
         ),
@@ -853,10 +980,7 @@ class _LayoutPlannerScreenState extends State<LayoutPlannerScreen>
         color: Colors.transparent,
         child: _ToolChip(tool: tool, isDragging: true),
       ),
-      childWhenDragging: Opacity(
-        opacity: 0.3,
-        child: _ToolChip(tool: tool),
-      ),
+      childWhenDragging: Opacity(opacity: 0.3, child: _ToolChip(tool: tool)),
       child: _ToolChip(tool: tool),
     );
   }
@@ -889,8 +1013,7 @@ class _ToolChip extends StatelessWidget {
                 color: tool.color.withValues(alpha: isDragging ? 0.2 : 0.1),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color:
-                      tool.color.withValues(alpha: isDragging ? 0.8 : 0.25),
+                  color: tool.color.withValues(alpha: isDragging ? 0.8 : 0.25),
                   width: isDragging ? 2 : 1,
                 ),
                 boxShadow: isDragging
@@ -899,7 +1022,7 @@ class _ToolChip extends StatelessWidget {
                           color: tool.color.withValues(alpha: 0.35),
                           blurRadius: 16,
                           spreadRadius: 2,
-                        )
+                        ),
                       ]
                     : null,
               ),
@@ -961,7 +1084,7 @@ class _ItemChip extends StatelessWidget {
                         color: tool.color.withValues(alpha: 0.40),
                         blurRadius: 20,
                         spreadRadius: 3,
-                      )
+                      ),
                     ]
                   : [
                       BoxShadow(
@@ -1013,10 +1136,7 @@ class GridPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     // Highlight overlay when hovering
     if (highlightColor != null) {
-      canvas.drawRect(
-        Offset.zero & size,
-        Paint()..color = highlightColor!,
-      );
+      canvas.drawRect(Offset.zero & size, Paint()..color = highlightColor!);
     }
 
     // Minor grid (20px)

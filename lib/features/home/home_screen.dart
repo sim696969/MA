@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/wedding_project_model.dart';
 import '../../services/wedding_project_provider.dart';
+import '../../services/catering_cart_provider.dart';
 import '../auth/auth_screen.dart';
 import '../venue/venue_finder_screen.dart';
 import '../planner/layout_planner_screen.dart';
@@ -13,6 +15,7 @@ import '../catering/catering_selector_screen.dart';
 import '../checkout/checkout_screen.dart';
 import '../auth/user_profile_screen.dart';
 import '../../services/auth_session_service.dart';
+import '../../widgets/top_right_toast.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -23,20 +26,34 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _currentNavIndex = 0;
-  String _selectedLocation = "Kuala Lumpur, MY";
-
-  final List<String> _locations = [
-    "Kuala Lumpur, MY",
-    "California, US",
-    "Penang, MY",
-    "Johor Bahru, MY",
-    "Singapore, SG",
-  ];
 
   // Calendar State
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedCalendarDay;
   CalendarFormat _calendarFormat = CalendarFormat.month;
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // Centralized Complete Booking Reset.
+  // Wipes in-memory state + Firestore subcollections + local cache.
+  // Called only by: Cancel Wedding Project.
+  // ────────────────────────────────────────────────────────────────────────────
+  Future<void> _resetAllBookingState() async {
+    // 1. Clear in-memory catering cart FIRST (fast, synchronous)
+    ref.read(cateringCartProvider.notifier).clearCart();
+
+    // 2. Reset local calendar/dashboard UI state so progress instantly shows 0%
+    if (mounted) {
+      setState(() {
+        _focusedDay = DateTime.now();
+        _selectedCalendarDay = null;
+        _calendarFormat = CalendarFormat.month;
+      });
+    }
+
+    // 3. Deep full reset: deletes Firestore subcollections (guests, catering orders,
+    //    layouts, invitations), wipes SharedPreferences, resets Riverpod project state.
+    await ref.read(weddingProjectProvider.notifier).fullResetAllBookingData();
+  }
 
   Future<void> _handleLogout(BuildContext context) async {
     final shouldLogout = await showDialog<bool>(
@@ -45,18 +62,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text(
           "Logout",
-          style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.slate900),
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: AppColors.slate900,
+          ),
         ),
-        content: const Text("Are you sure you want to log out of Wedify?"),
+        content: const Text(
+          "Are you sure you want to log out of Wedify?",
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text("Cancel", style: TextStyle(color: AppColors.slate600)),
+            child: const Text(
+              "Cancel",
+              style: TextStyle(color: AppColors.slate600),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.pinkPrimary,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
             onPressed: () => Navigator.of(context).pop(true),
             child: const Text("Logout", style: TextStyle(color: Colors.white)),
@@ -77,9 +104,126 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
+  // Dialog to confirm and cancel entire wedding project
+  Future<void> _showCancelWeddingDialog() async {
+    final shouldCancel = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: const BorderSide(color: Colors.black, width: 2),
+        ),
+        titlePadding: const EdgeInsets.fromLTRB(22, 22, 22, 0),
+        contentPadding: const EdgeInsets.fromLTRB(22, 12, 22, 0),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: Colors.black,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.delete_outline_rounded,
+                color: Colors.white,
+                size: 18,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              "Cancel Wedding Project?",
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.w900,
+                fontSize: 16,
+                color: Colors.black,
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          "Are you sure you want to cancel your entire wedding booking? This will permanently delete your venue, planner, invitations, and catering selections. This action cannot be undone.",
+          style: GoogleFonts.inter(
+            fontSize: 13,
+            color: Colors.black87,
+            height: 1.45,
+          ),
+        ),
+        actions: [
+          Row(
+            children: [
+              // Keep Booking (Dismiss)
+              TextButton(
+                onPressed: () => Navigator.of(dialogCtx).pop(false),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.black54,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
+                ),
+                child: Text(
+                  "Keep Booking",
+                  style: GoogleFonts.inter(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: Colors.black54,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              // Yes, Cancel (Destructive)
+              ElevatedButton(
+                onPressed: () => Navigator.of(dialogCtx).pop(true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.black,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: Text(
+                  "Yes, Cancel",
+                  style: GoogleFonts.inter(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    if (shouldCancel == true && mounted) {
+      // Call centralized COMPLETE reset — wipes catering cart + all Firestore
+      // subcollections (guests, catering orders, layouts, invitations) + all
+      // local state + SharedPreferences.
+      await _resetAllBookingState();
+      if (!mounted) return;
+      context.showTopRightSuccess(
+        "Wedding project has been completely reset. All selections were cleared.",
+      );
+    }
+  }
+
   // Dialog to prompt user to select date and time
-  Future<void> _showStartProjectModal(BuildContext context, WeddingProject project) async {
-    DateTime selectedDate = project.weddingDate ?? DateTime.now().add(const Duration(days: 90));
+  Future<void> _showStartProjectModal(
+    BuildContext context,
+    WeddingProject project,
+  ) async {
+    DateTime selectedDate =
+        project.weddingDate ?? DateTime.now().add(const Duration(days: 90));
     TimeOfDay selectedTime = const TimeOfDay(hour: 11, minute: 0);
 
     final isConfirmed = await showDialog<bool>(
@@ -88,7 +232,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         return StatefulBuilder(
           builder: (context, setModalState) {
             return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
               title: Row(
                 children: [
                   Container(
@@ -97,12 +243,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       color: AppColors.pinkLight,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.favorite_rounded, color: AppColors.pinkPrimary, size: 22),
+                    child: const Icon(
+                      Icons.favorite_rounded,
+                      color: AppColors.pinkPrimary,
+                      size: 22,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   const Text(
                     "Wedding Schedule",
-                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: AppColors.slate900),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 18,
+                      color: AppColors.slate900,
+                    ),
                   ),
                 ],
               ),
@@ -112,7 +266,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 children: [
                   const Text(
                     "Please select your planned Wedding Date and Time to initialize feature access.",
-                    style: TextStyle(fontSize: 13, color: AppColors.slate600, height: 1.4),
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.slate600,
+                      height: 1.4,
+                    ),
                   ),
                   const SizedBox(height: 20),
 
@@ -123,7 +281,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         context: context,
                         initialDate: selectedDate,
                         firstDate: DateTime.now(),
-                        lastDate: DateTime.now().add(const Duration(days: 1095)),
+                        lastDate: DateTime.now().add(
+                          const Duration(days: 1095),
+                        ),
                         builder: (BuildContext context, Widget? child) {
                           return Theme(
                             data: Theme.of(context).copyWith(
@@ -136,26 +296,36 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               textButtonTheme: TextButtonThemeData(
                                 style: TextButton.styleFrom(
                                   foregroundColor: AppColors.pinkPrimary,
-                                  textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                                  textStyle: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
                               datePickerTheme: DatePickerThemeData(
                                 backgroundColor: Colors.white,
-                                dayForegroundColor: WidgetStateProperty.resolveWith((states) {
-                                  if (states.contains(WidgetState.selected)) {
-                                    return Colors.white;
-                                  }
-                                  return AppColors.slate900;
-                                }),
-                                dayBackgroundColor: WidgetStateProperty.resolveWith((states) {
-                                  if (states.contains(WidgetState.selected)) {
-                                    return AppColors.pinkPrimary;
-                                  }
-                                  return Colors.transparent;
-                                }),
+                                dayForegroundColor:
+                                    WidgetStateProperty.resolveWith((states) {
+                                      if (states.contains(
+                                        WidgetState.selected,
+                                      )) {
+                                        return Colors.white;
+                                      }
+                                      return AppColors.slate900;
+                                    }),
+                                dayBackgroundColor:
+                                    WidgetStateProperty.resolveWith((states) {
+                                      if (states.contains(
+                                        WidgetState.selected,
+                                      )) {
+                                        return AppColors.pinkPrimary;
+                                      }
+                                      return Colors.transparent;
+                                    }),
                                 confirmButtonStyle: TextButton.styleFrom(
                                   foregroundColor: AppColors.pinkPrimary,
-                                  textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                                  textStyle: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                                 cancelButtonStyle: TextButton.styleFrom(
                                   foregroundColor: AppColors.slate600,
@@ -172,7 +342,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     },
                     borderRadius: BorderRadius.circular(14),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.slate100.withValues(alpha: 0.7),
                         borderRadius: BorderRadius.circular(14),
@@ -183,21 +356,41 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         children: [
                           Row(
                             children: [
-                              const Icon(Icons.calendar_today_rounded, color: AppColors.pinkPrimary, size: 20),
+                              const Icon(
+                                Icons.calendar_today_rounded,
+                                color: AppColors.pinkPrimary,
+                                size: 20,
+                              ),
                               const SizedBox(width: 12),
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text("Wedding Date", style: TextStyle(fontSize: 11, color: AppColors.slate500)),
+                                  const Text(
+                                    "Wedding Date",
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: AppColors.slate500,
+                                    ),
+                                  ),
                                   Text(
-                                    DateFormat('MMM dd, yyyy').format(selectedDate),
-                                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.slate900),
+                                    DateFormat(
+                                      'MMM dd, yyyy',
+                                    ).format(selectedDate),
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.slate900,
+                                    ),
                                   ),
                                 ],
                               ),
                             ],
                           ),
-                          const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.slate400),
+                          const Icon(
+                            Icons.arrow_forward_ios_rounded,
+                            size: 14,
+                            color: AppColors.slate400,
+                          ),
                         ],
                       ),
                     ),
@@ -224,7 +417,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               textButtonTheme: TextButtonThemeData(
                                 style: TextButton.styleFrom(
                                   foregroundColor: AppColors.pinkPrimary,
-                                  textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                                  textStyle: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
                               timePickerTheme: TimePickerThemeData(
@@ -239,7 +434,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 entryModeIconColor: AppColors.pinkPrimary,
                                 confirmButtonStyle: TextButton.styleFrom(
                                   foregroundColor: AppColors.pinkPrimary,
-                                  textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                                  textStyle: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                                 cancelButtonStyle: TextButton.styleFrom(
                                   foregroundColor: AppColors.slate600,
@@ -256,7 +453,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     },
                     borderRadius: BorderRadius.circular(14),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.slate100.withValues(alpha: 0.7),
                         borderRadius: BorderRadius.circular(14),
@@ -267,21 +467,39 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         children: [
                           Row(
                             children: [
-                              const Icon(Icons.access_time_rounded, color: AppColors.pinkPrimary, size: 20),
+                              const Icon(
+                                Icons.access_time_rounded,
+                                color: AppColors.pinkPrimary,
+                                size: 20,
+                              ),
                               const SizedBox(width: 12),
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text("Event Time", style: TextStyle(fontSize: 11, color: AppColors.slate500)),
+                                  const Text(
+                                    "Event Time",
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: AppColors.slate500,
+                                    ),
+                                  ),
                                   Text(
                                     selectedTime.format(context),
-                                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.slate900),
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.slate900,
+                                    ),
                                   ),
                                 ],
                               ),
                             ],
                           ),
-                          const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.slate400),
+                          const Icon(
+                            Icons.arrow_forward_ios_rounded,
+                            size: 14,
+                            color: AppColors.slate400,
+                          ),
                         ],
                       ),
                     ),
@@ -291,16 +509,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(ctx).pop(false),
-                  child: const Text("Cancel", style: TextStyle(color: AppColors.slate600)),
+                  child: const Text(
+                    "Cancel",
+                    style: TextStyle(color: AppColors.slate600),
+                  ),
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.pinkPrimary,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 10,
+                    ),
                   ),
                   onPressed: () => Navigator.of(ctx).pop(true),
-                  child: const Text("Start Project", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  child: const Text(
+                    "Start Project",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ],
             );
@@ -311,44 +543,62 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     if (isConfirmed == true && context.mounted) {
       final formattedTime = selectedTime.format(context);
-      ref.read(weddingProjectProvider.notifier).setDateTime(selectedDate, formattedTime);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Wedding Project started for ${DateFormat('MMM dd, yyyy').format(selectedDate)} at $formattedTime!"),
-          backgroundColor: AppColors.pinkPrimary,
-        ),
+      ref
+          .read(weddingProjectProvider.notifier)
+          .setDateTime(selectedDate, formattedTime);
+      context.showTopRightSuccess(
+        "Wedding Project started for ${DateFormat('MMM dd, yyyy').format(selectedDate)} at $formattedTime!",
       );
     }
   }
 
-  void _handleFeatureClick(BuildContext context, WeddingProject project, Widget screen, String featureTitle) async {
+  void _handleFeatureClick(
+    BuildContext context,
+    WeddingProject project,
+    Widget screen,
+    String featureTitle,
+  ) async {
     if (!project.isInitialized) {
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
           title: const Row(
             children: [
               Icon(Icons.lock_clock_rounded, color: AppColors.pinkPrimary),
               SizedBox(width: 10),
-              Text("Feature Locked", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              Text(
+                "Feature Locked",
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
             ],
           ),
           content: Text(
             "Please start your Wedding Project and set a Date & Time first before accessing $featureTitle.",
-            style: const TextStyle(color: AppColors.slate700, fontSize: 13, height: 1.4),
+            style: const TextStyle(
+              color: AppColors.slate700,
+              fontSize: 13,
+              height: 1.4,
+            ),
           ),
           actions: [
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.pinkPrimary,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
               onPressed: () {
                 Navigator.of(ctx).pop();
                 _showStartProjectModal(context, project);
               },
-              child: const Text("Set Date & Time", style: TextStyle(color: Colors.white)),
+              child: const Text(
+                "Set Date & Time",
+                style: TextStyle(color: Colors.white),
+              ),
             ),
           ],
         ),
@@ -361,27 +611,40 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       MaterialPageRoute(builder: (context) => screen),
     );
 
-    // Auto-update step completion status after navigating back
-    if (featureTitle == "Venue Finder") {
-      ref.read(weddingProjectProvider.notifier).updateVenue(
-        venueName: result ?? "Selected Ballroom Venue",
-        fee: 4500.0,
-      );
-    } else if (featureTitle == "2D Planner") {
-      ref.read(weddingProjectProvider.notifier).updatePlannerLayout(
-        layoutSummary: "Custom 10-Table Layout",
-        fee: 800.0,
-      );
-    } else if (featureTitle == "Invitations") {
-      ref.read(weddingProjectProvider.notifier).updateInvitation(
-        invitationName: "Luxury Gold Card",
-        fee: 650.0,
-      );
-    } else if (featureTitle == "F&B Catering") {
-      ref.read(weddingProjectProvider.notifier).updateCatering(
-        cateringPackage: "Premium Buffet Package",
-        fee: 5500.0,
-      );
+    // ONLY update step completion if user actually made a selection (result != null)
+    // Never overwrite existing data with hardcoded defaults if user just pressed back
+    if (result != null) {
+      if (featureTitle == "Venue Finder" && result is Map<String, dynamic>) {
+        // VenueFinder persists the reservation before returning. Do not save a
+        // second time here, where an old route could hold stale project state.
+      } else if (featureTitle == "2D Planner" &&
+          result is Map<String, dynamic>) {
+        ref
+            .read(weddingProjectProvider.notifier)
+            .updatePlannerLayout(
+              layoutSummary:
+                  result['layoutSummary'] as String? ?? "Custom Layout",
+              fee: (result['fee'] as num?)?.toDouble() ?? 800.0,
+            );
+      } else if (featureTitle == "Invitations" &&
+          result is Map<String, dynamic>) {
+        ref
+            .read(weddingProjectProvider.notifier)
+            .updateInvitation(
+              invitationName:
+                  result['invitationName'] as String? ?? "Selected Invitation",
+              fee: (result['fee'] as num?)?.toDouble() ?? 650.0,
+            );
+      } else if (featureTitle == "F&B Catering" &&
+          result is Map<String, dynamic>) {
+        ref
+            .read(weddingProjectProvider.notifier)
+            .updateCatering(
+              cateringPackage:
+                  result['cateringPackage'] as String? ?? "Selected Package",
+              fee: (result['fee'] as num?)?.toDouble() ?? 5500.0,
+            );
+      }
     }
   }
 
@@ -390,14 +653,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final project = ref.watch(weddingProjectProvider);
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.backgroundLight,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. Top Header Row: Grid Icon | Location Selector | Notification Bell & Logout
+              // 1. Top Header Row: Menu and logout
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -409,95 +672,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: IconButton(
-                      icon: const Icon(Icons.grid_view_rounded, color: AppColors.slate900, size: 20),
+                      icon: const Icon(
+                        Icons.grid_view_rounded,
+                        color: AppColors.slate900,
+                        size: 20,
+                      ),
                       onPressed: () {},
                     ),
                   ),
-
-                  // Location Selector Pill
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    width: 44,
+                    height: 44,
                     decoration: BoxDecoration(
-                      color: AppColors.slate100.withValues(alpha: 0.7),
-                      borderRadius: BorderRadius.circular(24),
+                      color: AppColors.slate100,
+                      borderRadius: BorderRadius.circular(14),
                     ),
-                    child: PopupMenuButton<String>(
-                      initialValue: _selectedLocation,
-                      onSelected: (loc) => setState(() => _selectedLocation = loc),
-                      offset: const Offset(0, 40),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      itemBuilder: (context) => _locations
-                          .map((loc) => PopupMenuItem(
-                                value: loc,
-                                child: Text(loc, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                              ))
-                          .toList(),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.location_on_outlined, color: AppColors.pinkPrimary, size: 16),
-                          const SizedBox(width: 6),
-                          Text(
-                            _selectedLocation,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.slate900,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.slate600, size: 18),
-                        ],
+                    child: IconButton(
+                      tooltip: 'Logout',
+                      icon: const Icon(
+                        Icons.logout_rounded,
+                        color: AppColors.pinkPrimary,
+                        size: 20,
                       ),
+                      onPressed: () => _handleLogout(context),
                     ),
-                  ),
-
-                  // Bell & Logout Buttons
-                  Row(
-                    children: [
-                      Stack(
-                        children: [
-                          Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              color: AppColors.slate100,
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: IconButton(
-                              icon: const Icon(Icons.notifications_none_rounded, color: AppColors.slate900, size: 22),
-                              onPressed: () {},
-                            ),
-                          ),
-                          Positioned(
-                            right: 12,
-                            top: 12,
-                            child: Container(
-                              width: 8,
-                              height: 8,
-                              decoration: const BoxDecoration(
-                                color: AppColors.pinkPrimary,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: AppColors.slate100,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: IconButton(
-                          tooltip: 'Logout',
-                          icon: const Icon(Icons.logout_rounded, color: AppColors.pinkPrimary, size: 20),
-                          onPressed: () => _handleLogout(context),
-                        ),
-                      ),
-                    ],
                   ),
                 ],
               ),
@@ -506,6 +704,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               // 2. Hero Action: Prominent "Start a Wedding Project" Button
               _buildMainActionBanner(context, project),
               const SizedBox(height: 24),
+
+              if (project.isVenueCompleted &&
+                  project.selectedVenueName?.isNotEmpty == true) ...[
+                _buildBookedVenueCard(context, project),
+                const SizedBox(height: 16),
+              ],
+
+              if (project.amountPaid > 0 && project.balanceDue > 0) ...[
+                _buildPaymentIncompleteBanner(context, project),
+                const SizedBox(height: 16),
+              ],
 
               // 3. Progress Indicator Card
               _buildProgressCard(context, project),
@@ -564,23 +773,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       bottomNavigationBar: Container(
         height: 72,
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 20,
-              offset: const Offset(0, -4),
-            ),
-          ],
+          color: AppColors.navy,
+          border: const Border(top: BorderSide(color: AppColors.navy)),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            _buildNavItem(index: 0, icon: Icons.home_outlined, activeIcon: Icons.home_rounded, showDot: true),
-            _buildNavItem(index: 1, icon: Icons.add_circle_outline_rounded, activeIcon: Icons.add_circle_rounded),
-            _buildNavItem(index: 2, icon: Icons.chat_bubble_outline_rounded, activeIcon: Icons.chat_bubble_rounded),
-            _buildNavItem(index: 3, icon: Icons.person_outline_rounded, activeIcon: Icons.person_rounded),
+            _buildNavItem(
+              index: 0,
+              icon: Icons.home_outlined,
+              activeIcon: Icons.home_rounded,
+              showDot: true,
+            ),
+            _buildNavItem(
+              index: 1,
+              icon: Icons.person_outline_rounded,
+              activeIcon: Icons.person_rounded,
+            ),
           ],
         ),
       ),
@@ -594,19 +803,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFFF5E8E), Color(0xFFFF8FA3)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFFFF5E8E).withValues(alpha: 0.35),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
+        color: AppColors.slate900,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.slate900),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -614,41 +813,112 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.25),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.stars_rounded, color: Colors.white, size: 14),
-                    const SizedBox(width: 6),
-                    Text(
-                      isStarted ? "PROJECT ACTIVE" : "NEW PROJECT",
-                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.25),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.stars_rounded,
+                          color: Colors.white,
+                          size: 14,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          isStarted ? "PROJECT ACTIVE" : "NEW PROJECT",
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (isStarted) ...[
+                    const SizedBox(width: 8),
+                    // Minimalist B&W Payment Status Badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: project.isPaid ? Colors.black : Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: project.isPaid ? Colors.black : Colors.black,
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            project.isPaid
+                                ? Icons.check_circle_rounded
+                                : Icons.pending_outlined,
+                            size: 12,
+                            color: project.isPaid ? Colors.white : Colors.black,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            project.isPaid
+                                ? "Payment: Completed"
+                                : "Payment: Pending",
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: project.isPaid
+                                  ? Colors.white
+                                  : Colors.black,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
-                ),
+                ],
               ),
               if (isStarted)
                 GestureDetector(
                   onTap: () => _showStartProjectModal(context, project),
-                  child: const Icon(Icons.edit_calendar_rounded, color: Colors.white, size: 20),
+                  child: const Icon(
+                    Icons.edit_calendar_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
                 ),
             ],
           ),
           const SizedBox(height: 12),
           Text(
             isStarted ? "Wedding Scheduled!" : "Start a Wedding Project",
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white, height: 1.2),
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+              height: 1.2,
+            ),
           ),
           const SizedBox(height: 6),
           Text(
             isStarted
                 ? "Date: ${DateFormat('MMM dd, yyyy').format(project.weddingDate!)} at ${project.weddingTime}"
                 : "Set event date & time to unlock venue, layout planner & catering setup.",
-            style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.9), height: 1.3),
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.white.withValues(alpha: 0.9),
+              height: 1.3,
+            ),
           ),
           const SizedBox(height: 16),
           SizedBox(
@@ -658,16 +928,169 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 backgroundColor: Colors.white,
                 foregroundColor: AppColors.pinkPrimary,
                 padding: const EdgeInsets.symmetric(vertical: 13),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
                 elevation: 0,
               ),
               onPressed: () => _showStartProjectModal(context, project),
-              icon: Icon(isStarted ? Icons.update_rounded : Icons.add_circle_outline_rounded, size: 20),
+              icon: Icon(
+                isStarted
+                    ? Icons.update_rounded
+                    : Icons.add_circle_outline_rounded,
+                size: 20,
+              ),
               label: Text(
                 isStarted ? "Change Date & Time" : "Plan a Wedding Now",
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
+          ),
+          if (isStarted) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: Colors.white70, width: 1.5),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                onPressed: () => _showCancelWeddingDialog(),
+                icon: const Icon(
+                  Icons.cancel_outlined,
+                  size: 18,
+                  color: Colors.white,
+                ),
+                label: const Text(
+                  "Cancel Wedding Project",
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBookedVenueCard(BuildContext context, WeddingProject project) {
+    final eventDate = project.weddingDate == null
+        ? 'Event date to be confirmed'
+        : DateFormat('d MMMM y').format(project.weddingDate!);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.navy,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: const BoxDecoration(
+              color: AppColors.blush,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.location_city_rounded, color: Colors.white),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'BOOKED VENUE',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  project.selectedVenueName!,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '$eventDate • ${project.weddingTime ?? 'Time TBD'}',
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+                if (project.selectedVenueAddress?.isNotEmpty == true) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    project.selectedVenueAddress!,
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPaymentIncompleteBanner(
+    BuildContext context,
+    WeddingProject project,
+  ) {
+    final currency = NumberFormat.currency(locale: 'en_MY', symbol: 'RM ');
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.pinkLight,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.blush),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'PAYMENT INCOMPLETE',
+            style: TextStyle(
+              color: AppColors.navy,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'You updated your booking. Please complete the remaining balance payment to confirm your changes.',
+            style: TextStyle(color: AppColors.charcoal, fontSize: 12),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Balance due: ${currency.format(project.balanceDue)}',
+            style: const TextStyle(
+              color: AppColors.navy,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 10),
+          ElevatedButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const CheckoutScreen()),
+            ),
+            child: const Text('Pay Balance with Stripe'),
           ),
         ],
       ),
@@ -703,7 +1126,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 children: [
                   Text(
                     "Planning Progress",
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.slate900),
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.slate900,
+                    ),
                   ),
                   SizedBox(height: 2),
                   Text(
@@ -713,9 +1140,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ],
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
-                  color: project.isFullyCompleted ? const Color(0xFFE8F5E9) : AppColors.pinkLight,
+                  color: project.isFullyCompleted
+                      ? const Color(0xFFE3F0E9)
+                      : AppColors.pinkLight,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
@@ -723,7 +1155,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
-                    color: project.isFullyCompleted ? const Color(0xFF2E7D32) : AppColors.pinkPrimary,
+                    color: project.isFullyCompleted
+                        ? AppColors.sage
+                        : AppColors.pinkPrimary,
                   ),
                 ),
               ),
@@ -762,7 +1196,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return Column(
       children: [
         Icon(
-          isDone ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+          isDone
+              ? Icons.check_circle_rounded
+              : Icons.radio_button_unchecked_rounded,
           size: 18,
           color: isDone ? AppColors.pinkPrimary : AppColors.slate400,
         ),
@@ -782,10 +1218,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   // 4. 4 Features Grid (Venue, 2D Planner, Invitations, Catering)
   Widget _buildFourFeaturesGrid(BuildContext context, WeddingProject project) {
     final features = [
-      _FeatureConfig("Venue Finder", Icons.apartment_rounded, const VenueFinderScreen(), project.isVenueCompleted),
-      _FeatureConfig("2D Planner", Icons.architecture_rounded, const LayoutPlannerScreen(), project.isPlannerCompleted),
-      _FeatureConfig("Invitations", Icons.mark_email_unread_rounded, const InvitationGalleryScreen(), project.isInvitationCompleted),
-      _FeatureConfig("F&B Catering", Icons.cake_rounded, const CateringSelectorScreen(), project.isCateringCompleted),
+      _FeatureConfig(
+        "Venue Finder",
+        Icons.apartment_rounded,
+        const VenueFinderScreen(),
+        project.isVenueCompleted,
+      ),
+      _FeatureConfig(
+        "2D Planner",
+        Icons.architecture_rounded,
+        const LayoutPlannerScreen(),
+        project.isPlannerCompleted,
+      ),
+      _FeatureConfig(
+        "Invitations",
+        Icons.mark_email_unread_rounded,
+        const InvitationGalleryScreen(),
+        project.isInvitationCompleted,
+      ),
+      _FeatureConfig(
+        "F&B Catering",
+        Icons.cake_rounded,
+        const CateringSelectorScreen(),
+        project.isCateringCompleted,
+      ),
     ];
 
     return Row(
@@ -798,7 +1254,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               icon: f.icon,
               isCompleted: f.isCompleted,
               isUnlocked: project.isInitialized,
-              onTap: () => _handleFeatureClick(context, project, f.screen, f.title),
+              onTap: () =>
+                  _handleFeatureClick(context, project, f.screen, f.title),
             ),
           )
           .toList(),
@@ -829,17 +1286,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   decoration: BoxDecoration(
                     color: isCompleted
                         ? AppColors.pinkLight
-                        : (isUnlocked ? AppColors.slate100.withValues(alpha: 0.8) : const Color(0xFFF1F5F9)),
+                        : (isUnlocked
+                              ? AppColors.slate100.withValues(alpha: 0.8)
+                              : const Color(0xFFF1F5F9)),
                     borderRadius: BorderRadius.circular(18),
                     border: Border.all(
-                      color: isCompleted ? AppColors.pinkBorder : Colors.transparent,
+                      color: isCompleted
+                          ? AppColors.pinkBorder
+                          : Colors.transparent,
                       width: 1.5,
                     ),
                   ),
                   child: Center(
                     child: Icon(
                       icon,
-                      color: isUnlocked ? (isCompleted ? AppColors.pinkPrimary : AppColors.slate800) : AppColors.slate400,
+                      color: isUnlocked
+                          ? (isCompleted
+                                ? AppColors.pinkPrimary
+                                : AppColors.slate800)
+                          : AppColors.slate400,
                       size: 24,
                     ),
                   ),
@@ -854,7 +1319,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         color: AppColors.slate600,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.lock_rounded, size: 10, color: Colors.white),
+                      child: const Icon(
+                        Icons.lock_rounded,
+                        size: 10,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 if (isCompleted)
@@ -867,7 +1336,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         color: AppColors.pinkPrimary,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.check_rounded, size: 10, color: Colors.white),
+                      child: const Icon(
+                        Icons.check_rounded,
+                        size: 10,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
               ],
@@ -891,42 +1364,51 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   // 5. Checkout Banner at 100% completion
   Widget _buildCheckoutBanner(BuildContext context, WeddingProject project) {
+    final isPaid = project.isPaid;
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        color: AppColors.navy,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.navy),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: AppColors.pinkPrimary,
+              color: isPaid ? AppColors.sage : AppColors.pinkPrimary,
               borderRadius: BorderRadius.circular(14),
             ),
-            child: const Icon(Icons.shopping_bag_rounded, color: Colors.white, size: 24),
+            child: Icon(
+              isPaid ? Icons.verified_rounded : Icons.shopping_bag_rounded,
+              color: Colors.white,
+              size: 24,
+            ),
           ),
           const SizedBox(width: 14),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  "All Setup Complete! (100%)",
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+                  isPaid ? "Payment Completed" : "All Setup Complete! (100%)",
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
                 ),
-                SizedBox(height: 2),
+                const SizedBox(height: 2),
                 Text(
-                  "Ready to checkout & book services.",
-                  style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                  isPaid
+                      ? "Your booking is locked in and confirmed."
+                      : "Ready to checkout & book services.",
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF94A3B8),
+                  ),
                 ),
               ],
             ),
@@ -934,8 +1416,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.pinkPrimary,
+              foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
             ),
             onPressed: () {
               Navigator.push(
@@ -943,7 +1428,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 MaterialPageRoute(builder: (context) => const CheckoutScreen()),
               );
             },
-            child: const Text("Checkout", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            child: Text(
+              isPaid ? "View Receipt" : "Checkout",
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),
@@ -998,7 +1486,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             shape: BoxShape.circle,
             border: Border.all(color: AppColors.pinkPrimary),
           ),
-          todayTextStyle: const TextStyle(color: AppColors.pinkPrimary, fontWeight: FontWeight.bold),
+          todayTextStyle: const TextStyle(
+            color: AppColors.pinkPrimary,
+            fontWeight: FontWeight.bold,
+          ),
           markerDecoration: const BoxDecoration(
             color: AppColors.pinkPrimary,
             shape: BoxShape.circle,
@@ -1007,9 +1498,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         headerStyle: const HeaderStyle(
           formatButtonVisible: false,
           titleCentered: true,
-          titleTextStyle: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.slate900),
-          leftChevronIcon: Icon(Icons.chevron_left_rounded, color: AppColors.slate700),
-          rightChevronIcon: Icon(Icons.chevron_right_rounded, color: AppColors.slate700),
+          titleTextStyle: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w800,
+            color: AppColors.slate900,
+          ),
+          leftChevronIcon: Icon(
+            Icons.chevron_left_rounded,
+            color: AppColors.slate700,
+          ),
+          rightChevronIcon: Icon(
+            Icons.chevron_right_rounded,
+            color: AppColors.slate700,
+          ),
         ),
       ),
     );
@@ -1026,7 +1527,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return GestureDetector(
       onTap: () async {
         setState(() => _currentNavIndex = index);
-        if (index == 3) {
+        if (index == 1) {
           await Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => const UserProfileScreen()),
@@ -1041,7 +1542,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         children: [
           Icon(
             isSelected ? activeIcon : icon,
-            color: isSelected ? AppColors.pinkPrimary : AppColors.slate400,
+            color: isSelected ? AppColors.pinkPrimary : Colors.white70,
             size: 26,
           ),
           if (showDot && isSelected) ...[

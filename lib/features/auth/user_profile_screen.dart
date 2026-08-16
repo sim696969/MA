@@ -16,7 +16,7 @@ class UserProfileScreen extends ConsumerStatefulWidget {
 
 class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
   final DatabaseService _dbService = DatabaseService();
-  int _currentNavIndex = 3; // Profile active
+  int _currentNavIndex = 1; // Profile active
 
   bool _isLoading = true;
 
@@ -333,23 +333,14 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
       bottomNavigationBar: Container(
         height: 72,
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 20,
-              offset: const Offset(0, -4),
-            ),
-          ],
+          color: AppColors.navy,
+          border: const Border(top: BorderSide(color: AppColors.navy)),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
             _buildNavItem(index: 0, icon: Icons.home_outlined, activeIcon: Icons.home_rounded),
-            _buildNavItem(index: 1, icon: Icons.add_circle_outline_rounded, activeIcon: Icons.add_circle_rounded),
-            _buildNavItem(index: 2, icon: Icons.chat_bubble_outline_rounded, activeIcon: Icons.chat_bubble_rounded),
-            _buildNavItem(index: 3, icon: Icons.person_outline_rounded, activeIcon: Icons.person_rounded, showDot: true),
+            _buildNavItem(index: 1, icon: Icons.person_outline_rounded, activeIcon: Icons.person_rounded, showDot: true),
           ],
         ),
       ),
@@ -413,7 +404,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
         children: [
           Icon(
             isSelected ? activeIcon : icon,
-            color: isSelected ? AppColors.pinkPrimary : AppColors.slate400,
+            color: isSelected ? AppColors.pinkPrimary : Colors.white70,
             size: 26,
           ),
           if (showDot && isSelected) ...[

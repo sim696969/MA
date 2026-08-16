@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../core/theme/app_colors.dart';
 import '../../models/catering_order_model.dart';
 import '../../services/catering_cart_provider.dart';
 import '../../services/database_service.dart';
@@ -26,10 +27,12 @@ class _CateringSelectorScreenState
   /// Used to detect whether the user actually changed anything before leaving.
   Map<String, int> _initialCartSnapshot = {};
 
-  final List<String> _categories = const [
-    "Chinese Cuisine",
-    "Western Food",
-  ];
+  final List<String> _categories = const ["Chinese Cuisine", "Western Food"];
+
+  bool _isNewEmptyProject() {
+    final project = ref.read(weddingProjectProvider);
+    return !project.isInitialized;
+  }
 
   @override
   void initState() {
@@ -42,6 +45,19 @@ class _CateringSelectorScreenState
   /// Query Firebase Firestore for existing catering orders linked to this project.
   /// After loading, snapshots the initial state so hasCartChanged() can compare.
   Future<void> _loadExistingProjectOrder() async {
+    // Brand new / canceled project → start with an empty cart, no Firestore load.
+    // Prevents stale previous catering items from appearing in a fresh booking.
+    if (_isNewEmptyProject()) {
+      ref.read(cateringCartProvider.notifier).clearCart();
+      if (mounted) {
+        setState(() {
+          _initialCartSnapshot = {};
+          _isLoadingOrder = false;
+        });
+      }
+      return;
+    }
+
     final cart = ref.read(cateringCartProvider);
     if (cart.isNotEmpty) {
       // Cart was already populated in memory — treat it as the baseline
@@ -49,13 +65,15 @@ class _CateringSelectorScreenState
       return;
     }
 
-    final project = ref.read(weddingProjectProvider);
-    final projectId = project.id.isNotEmpty ? project.id : 'project_1';
+    final projectId = ref
+        .read(weddingProjectProvider.notifier)
+        .firestoreProjectDocId;
 
     setState(() => _isLoadingOrder = true);
     try {
-      final existingOrder =
-          await _dbService.getLatestCateringOrder(projectId: projectId);
+      final existingOrder = await _dbService.getLatestCateringOrder(
+        projectId: projectId,
+      );
       if (existingOrder != null && existingOrder.items.isNotEmpty && mounted) {
         ref
             .read(cateringCartProvider.notifier)
@@ -66,8 +84,9 @@ class _CateringSelectorScreenState
     } finally {
       if (mounted) {
         // Snapshot whatever ended up in the cart right after load
-        _initialCartSnapshot =
-            Map<String, int>.from(ref.read(cateringCartProvider));
+        _initialCartSnapshot = Map<String, int>.from(
+          ref.read(cateringCartProvider),
+        );
         setState(() => _isLoadingOrder = false);
       }
     }
@@ -120,8 +139,11 @@ class _CateringSelectorScreenState
                 color: Colors.black,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.save_alt_outlined,
-                  color: Colors.white, size: 18),
+              child: const Icon(
+                Icons.save_alt_outlined,
+                color: Colors.white,
+                size: 18,
+              ),
             ),
             const SizedBox(width: 12),
             Text(
@@ -150,17 +172,30 @@ class _CateringSelectorScreenState
               children: [
                 // Far-left: Discard (subtle, muted)
                 TextButton(
-                  onPressed: () {
+                  onPressed: () async {
                     Navigator.of(dialogCtx).pop();
                     ref.read(cateringCartProvider.notifier).clearCart();
-                    // Also reset snapshot so hasCartChanged stays clean
                     _initialCartSnapshot = {};
-                    Navigator.of(context).pop();
+                    await ref
+                        .read(weddingProjectProvider.notifier)
+                        .updateCatering(
+                          cateringPackage: 'No items selected',
+                          fee: 0.0,
+                          isCompleted: false,
+                        );
+                    if (mounted) {
+                      Navigator.of(context).pop(<String, dynamic>{
+                        'cateringPackage': 'No items selected',
+                        'fee': 0.0,
+                      });
+                    }
                   },
                   style: TextButton.styleFrom(
                     foregroundColor: Colors.black45,
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 4, vertical: 10),
+                      horizontal: 4,
+                      vertical: 10,
+                    ),
                   ),
                   child: Text(
                     "Discard",
@@ -181,7 +216,9 @@ class _CateringSelectorScreenState
                     side: const BorderSide(color: Colors.black, width: 1.5),
                     foregroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 10),
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -200,35 +237,60 @@ class _CateringSelectorScreenState
                   onPressed: () async {
                     Navigator.of(dialogCtx).pop();
                     final project = ref.read(weddingProjectProvider);
-                    final projectId =
-                        project.id.isNotEmpty ? project.id : 'project_1';
-                    final notifier =
-                        ref.read(cateringCartProvider.notifier);
+                    final projectId = project.id.isNotEmpty
+                        ? project.id
+                        : 'project_1';
+                    final notifier = ref.read(cateringCartProvider.notifier);
+                    final totalAmount = notifier.calculateTotal();
+                    final orderedItems = notifier.getOrderedItemsList();
+                    final categories = orderedItems
+                        .map((e) => e['category'] as String)
+                        .toSet()
+                        .toList();
+                    final categorySummary = categories.join(' & ');
+                    final summary = orderedItems.isNotEmpty
+                        ? "${orderedItems.length} items ($categorySummary)"
+                        : "No items selected";
                     try {
                       final order = CateringOrderModel(
                         orderId: '',
-                        category: 'Mixed Cuisine',
+                        category: categorySummary,
                         additionalNotes: '',
-                        items: notifier
-                            .getOrderedItemsList()
+                        items: orderedItems
                             .map((m) => Map<String, dynamic>.from(m))
                             .toList(),
-                        totalAmount: notifier.calculateTotal(),
+                        totalAmount: totalAmount,
                         createdAt: DateTime.now(),
                       );
                       await _dbService.saveCateringOrder(
-                          projectId: projectId, order: order);
+                        projectId: projectId,
+                        order: order,
+                      );
                     } catch (_) {
                       // Silently fail — data stays in provider
                     }
-                    if (mounted) Navigator.of(context).pop();
+                    await ref
+                        .read(weddingProjectProvider.notifier)
+                        .updateCatering(
+                          cateringPackage: summary,
+                          fee: totalAmount,
+                          isCompleted: orderedItems.isNotEmpty,
+                        );
+                    if (mounted) {
+                      Navigator.of(context).pop(<String, dynamic>{
+                        'cateringPackage': summary,
+                        'fee': totalAmount,
+                      });
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.black,
                     foregroundColor: Colors.white,
                     elevation: 0,
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 10),
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -279,8 +341,11 @@ class _CateringSelectorScreenState
                 color: Colors.black,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.delete_outline,
-                  color: Colors.white, size: 18),
+              child: const Icon(
+                Icons.delete_outline,
+                color: Colors.white,
+                size: 18,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -298,7 +363,10 @@ class _CateringSelectorScreenState
         content: RichText(
           text: TextSpan(
             style: GoogleFonts.inter(
-                fontSize: 13, color: Colors.black87, height: 1.5),
+              fontSize: 13,
+              color: Colors.black87,
+              height: 1.5,
+            ),
             children: [
               const TextSpan(text: "Are you sure you want to remove "),
               TextSpan(
@@ -433,8 +501,11 @@ class _CateringSelectorScreenState
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.remove_shopping_cart_outlined,
-                                size: 48, color: Colors.black54),
+                            const Icon(
+                              Icons.remove_shopping_cart_outlined,
+                              size: 48,
+                              color: Colors.black54,
+                            ),
                             const SizedBox(height: 12),
                             Text(
                               "Your cart is empty",
@@ -511,28 +582,39 @@ class _CateringSelectorScreenState
                                   color: const Color(0xFFFAFAFA),
                                   borderRadius: BorderRadius.circular(8),
                                   border: Border.all(
-                                      color: Colors.black, width: 1.5),
+                                    color: Colors.black,
+                                    width: 1.5,
+                                  ),
                                 ),
                                 child: Row(
                                   children: [
                                     InkWell(
                                       onTap: () =>
                                           cartNotifier.decrement(itemId),
-                                      borderRadius: const BorderRadius.horizontal(
-                                          left: Radius.circular(6)),
+                                      borderRadius:
+                                          const BorderRadius.horizontal(
+                                            left: Radius.circular(6),
+                                          ),
                                       child: const Padding(
                                         padding: EdgeInsets.all(6.0),
-                                        child: Icon(Icons.remove,
-                                            size: 16, color: Colors.black),
+                                        child: Icon(
+                                          Icons.remove,
+                                          size: 16,
+                                          color: Colors.black,
+                                        ),
                                       ),
                                     ),
                                     Container(
                                       padding: const EdgeInsets.symmetric(
-                                          horizontal: 10, vertical: 4),
+                                        horizontal: 10,
+                                        vertical: 4,
+                                      ),
                                       decoration: const BoxDecoration(
                                         border: Border.symmetric(
                                           vertical: BorderSide(
-                                              color: Colors.black, width: 1.5),
+                                            color: Colors.black,
+                                            width: 1.5,
+                                          ),
                                         ),
                                       ),
                                       child: Text(
@@ -547,12 +629,17 @@ class _CateringSelectorScreenState
                                     InkWell(
                                       onTap: () =>
                                           cartNotifier.increment(itemId),
-                                      borderRadius: const BorderRadius.horizontal(
-                                          right: Radius.circular(6)),
+                                      borderRadius:
+                                          const BorderRadius.horizontal(
+                                            right: Radius.circular(6),
+                                          ),
                                       child: const Padding(
                                         padding: EdgeInsets.all(6.0),
-                                        child: Icon(Icons.add,
-                                            size: 16, color: Colors.black),
+                                        child: Icon(
+                                          Icons.add,
+                                          size: 16,
+                                          color: Colors.black,
+                                        ),
                                       ),
                                     ),
                                   ],
@@ -560,10 +647,13 @@ class _CateringSelectorScreenState
                               ),
                               const SizedBox(width: 8),
 
-                               // Trash / Remove Item Icon — with confirmation dialog
+                              // Trash / Remove Item Icon — with confirmation dialog
                               IconButton(
-                                icon: const Icon(Icons.delete_outline,
-                                    color: Colors.redAccent, size: 22),
+                                icon: const Icon(
+                                  Icons.delete_outline,
+                                  color: Colors.redAccent,
+                                  size: 22,
+                                ),
                                 tooltip: "Remove item",
                                 onPressed: () => _showRemoveItemDialog(
                                   sheetContext: context,
@@ -616,8 +706,11 @@ class _CateringSelectorScreenState
                           cartNotifier.clearCart();
                           Navigator.pop(context);
                         },
-                        icon: const Icon(Icons.delete_sweep_outlined,
-                            size: 16, color: Colors.black),
+                        icon: const Icon(
+                          Icons.delete_sweep_outlined,
+                          size: 16,
+                          color: Colors.black,
+                        ),
                         label: Text(
                           "CLEAR CART",
                           style: GoogleFonts.inter(
@@ -629,10 +722,11 @@ class _CateringSelectorScreenState
                         ),
                         style: OutlinedButton.styleFrom(
                           side: const BorderSide(
-                              color: Colors.black, width: 1.5),
+                            color: Colors.black,
+                            width: 1.5,
+                          ),
                           foregroundColor: Colors.black,
-                          padding:
-                              const EdgeInsets.symmetric(vertical: 12),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
@@ -666,25 +760,28 @@ class _CateringSelectorScreenState
         if (!didPop) _showBackDialog();
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFFFFFFFF),
+        backgroundColor: AppColors.backgroundLight,
         appBar: AppBar(
-          backgroundColor: Colors.white,
+          backgroundColor: AppColors.navy,
           elevation: 0,
           scrolledUnderElevation: 0,
           titleSpacing: 20,
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(1.5),
-            child: Container(color: Colors.black, height: 1.5),
+            child: Container(color: AppColors.blush, height: 1.5),
           ),
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new,
-                color: Colors.black, size: 20),
+            icon: const Icon(
+              Icons.arrow_back_ios_new,
+              color: Colors.white,
+              size: 20,
+            ),
             onPressed: _showBackDialog,
           ),
           title: Text(
             "F&B CATERING MENU",
             style: GoogleFonts.inter(
-              color: Colors.black,
+              color: Colors.white,
               fontWeight: FontWeight.w900,
               fontSize: 18,
               letterSpacing: 1.0,
@@ -696,7 +793,7 @@ class _CateringSelectorScreenState
               ? const Center(
                   child: CircularProgressIndicator(
                     strokeWidth: 2.5,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.blush),
                   ),
                 )
               : Column(
@@ -704,7 +801,9 @@ class _CateringSelectorScreenState
                     Expanded(
                       child: SingleChildScrollView(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 20, vertical: 20),
+                          horizontal: 20,
+                          vertical: 20,
+                        ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -754,7 +853,10 @@ class _CateringSelectorScreenState
                                 final item = filteredItems[index];
                                 final qty = cartState[item.id] ?? 0;
                                 return _buildFoodItemCard(
-                                    item, qty, cartNotifier);
+                                  item,
+                                  qty,
+                                  cartNotifier,
+                                );
                               },
                             ),
                             const SizedBox(height: 40),
@@ -772,32 +874,27 @@ class _CateringSelectorScreenState
     );
   }
 
-
   Widget _buildCategoryHeader() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFFAFAFA),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.black, width: 1.5),
-        boxShadow: const [
-          BoxShadow(
-            color: Colors.black,
-            offset: Offset(2, 2),
-            blurRadius: 0,
-          ),
-        ],
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.pinkBorder),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: Colors.black,
-              borderRadius: BorderRadius.circular(6),
+              color: AppColors.navy,
+              borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(Icons.restaurant_menu,
-                color: Colors.white, size: 16),
+            child: const Icon(
+              Icons.restaurant_menu,
+              color: Colors.white,
+              size: 16,
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -807,7 +904,7 @@ class _CateringSelectorScreenState
                 Text(
                   "SELECT BANQUET CUISINE",
                   style: GoogleFonts.inter(
-                    color: Colors.black,
+                    color: AppColors.navy,
                     fontSize: 12,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 0.8,
@@ -816,7 +913,7 @@ class _CateringSelectorScreenState
                 Text(
                   "Choose category and adjust item quantities freely.",
                   style: GoogleFonts.inter(
-                    color: Colors.black54,
+                    color: AppColors.slate600,
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
                   ),
@@ -847,24 +944,19 @@ class _CateringSelectorScreenState
                   _selectedCategory = cat;
                 });
               },
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(16),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
-                padding:
-                    const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 16,
+                  horizontal: 12,
+                ),
                 decoration: BoxDecoration(
-                  color: isSelected ? Colors.black : Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.black, width: 2),
-                  boxShadow: isSelected
-                      ? const [
-                          BoxShadow(
-                            color: Colors.black,
-                            offset: Offset(3, 3),
-                            blurRadius: 0,
-                          ),
-                        ]
-                      : null,
+                  color: isSelected ? AppColors.navy : Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isSelected ? AppColors.navy : AppColors.pinkBorder,
+                  ),
                 ),
                 child: Column(
                   children: [
@@ -872,7 +964,7 @@ class _CateringSelectorScreenState
                       cat == "Chinese Cuisine"
                           ? Icons.ramen_dining_outlined
                           : Icons.lunch_dining_outlined,
-                      color: isSelected ? Colors.white : Colors.black,
+                      color: isSelected ? Colors.white : AppColors.navy,
                       size: 26,
                     ),
                     const SizedBox(height: 8),
@@ -880,7 +972,7 @@ class _CateringSelectorScreenState
                       cat.toUpperCase(),
                       textAlign: TextAlign.center,
                       style: GoogleFonts.inter(
-                        color: isSelected ? Colors.white : Colors.black,
+                        color: isSelected ? Colors.white : AppColors.navy,
                         fontWeight: FontWeight.w900,
                         fontSize: 13,
                         letterSpacing: 0.5,
@@ -904,15 +996,8 @@ class _CateringSelectorScreenState
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.black, width: 2),
-        boxShadow: const [
-          BoxShadow(
-            color: Colors.black,
-            offset: Offset(3, 3),
-            blurRadius: 0,
-          ),
-        ],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.pinkBorder),
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -935,10 +1020,12 @@ class _CateringSelectorScreenState
                 top: 10,
                 right: 10,
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
-                    color: Colors.black,
+                  color: AppColors.navy,
                     borderRadius: BorderRadius.circular(6),
                     border: Border.all(color: Colors.white, width: 1),
                   ),
@@ -966,14 +1053,14 @@ class _CateringSelectorScreenState
                   style: GoogleFonts.inter(
                     fontWeight: FontWeight.w900,
                     fontSize: 16,
-                    color: Colors.black,
+                    color: AppColors.navy,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   item.description,
                   style: GoogleFonts.inter(
-                    color: Colors.black87,
+                    color: AppColors.charcoal,
                     fontSize: 12,
                     height: 1.4,
                   ),
@@ -994,7 +1081,7 @@ class _CateringSelectorScreenState
                           style: GoogleFonts.inter(
                             fontSize: 10,
                             fontWeight: FontWeight.w800,
-                            color: Colors.black54,
+                            color: AppColors.slate600,
                             letterSpacing: 0.5,
                           ),
                         ),
@@ -1003,7 +1090,7 @@ class _CateringSelectorScreenState
                           style: GoogleFonts.inter(
                             fontSize: 15,
                             fontWeight: FontWeight.w900,
-                            color: Colors.black,
+                            color: AppColors.navy,
                           ),
                         ),
                       ],
@@ -1029,8 +1116,8 @@ class _CateringSelectorScreenState
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.black, width: 2),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.pinkBorder),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1038,15 +1125,14 @@ class _CateringSelectorScreenState
           // Decrement Button
           InkWell(
             onTap: () => cartNotifier.decrement(item.id),
-            borderRadius:
-                const BorderRadius.horizontal(left: Radius.circular(6)),
+            borderRadius: const BorderRadius.horizontal(left: Radius.circular(20)),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               decoration: const BoxDecoration(
-                border:
-                    Border(right: BorderSide(color: Colors.black, width: 1.5)),
+                color: AppColors.pinkLight,
+                border: Border(right: BorderSide(color: AppColors.pinkBorder)),
               ),
-              child: const Icon(Icons.remove, size: 16, color: Colors.black),
+              child: const Icon(Icons.remove, size: 16, color: AppColors.navy),
             ),
           ),
 
@@ -1066,15 +1152,14 @@ class _CateringSelectorScreenState
           // Increment Button
           InkWell(
             onTap: () => cartNotifier.increment(item.id),
-            borderRadius:
-                const BorderRadius.horizontal(right: Radius.circular(6)),
+            borderRadius: const BorderRadius.horizontal(right: Radius.circular(20)),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               decoration: const BoxDecoration(
-                border:
-                    Border(left: BorderSide(color: Colors.black, width: 1.5)),
+                color: AppColors.blush,
+                border: Border(left: BorderSide(color: AppColors.pinkBorder)),
               ),
-              child: const Icon(Icons.add, size: 16, color: Colors.black),
+              child: const Icon(Icons.add, size: 16, color: Colors.white),
             ),
           ),
         ],
@@ -1088,10 +1173,8 @@ class _CateringSelectorScreenState
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
       decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(
-          top: BorderSide(color: Colors.black, width: 2),
-        ),
+        color: AppColors.navy,
+        border: Border(top: BorderSide(color: AppColors.navy)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1107,7 +1190,7 @@ class _CateringSelectorScreenState
                   fontSize: 10,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0.8,
-                  color: Colors.black54,
+                  color: Colors.white70,
                 ),
               ),
               if (hasItems)
@@ -1117,12 +1200,12 @@ class _CateringSelectorScreenState
                     onPressed: _showCurrentOrderBottomSheet,
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 0),
-                      side: const BorderSide(color: Colors.black, width: 1.5),
-                      foregroundColor: Colors.black,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(6),
+                        horizontal: 12,
+                        vertical: 0,
                       ),
+                      side: const BorderSide(color: Colors.white),
+                      foregroundColor: Colors.white,
+                      shape: const StadiumBorder(),
                     ),
                     child: Text(
                       "VIEW ORDER",
@@ -1130,9 +1213,9 @@ class _CateringSelectorScreenState
                         fontWeight: FontWeight.w800,
                         fontSize: 10,
                         letterSpacing: 0.8,
-                        color: Colors.black,
+                        color: Colors.white,
                         decoration: TextDecoration.underline,
-                        decorationColor: Colors.black,
+                        decorationColor: Colors.white,
                       ),
                     ),
                   ),
@@ -1149,7 +1232,7 @@ class _CateringSelectorScreenState
               style: GoogleFonts.inter(
                 fontSize: 22,
                 fontWeight: FontWeight.w900,
-                color: Colors.black,
+                color: Colors.white,
               ),
             ),
           ),
@@ -1161,17 +1244,23 @@ class _CateringSelectorScreenState
             height: 52,
             child: ElevatedButton.icon(
               onPressed: hasItems
-                  ? () {
-                      Navigator.push(
+                  ? () async {
+                      final result = await Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) => const CateringCheckoutScreen(),
                         ),
                       );
+                      if (mounted && result != null) {
+                        Navigator.of(context).pop(result);
+                      }
                     }
                   : null,
-              icon: const Icon(Icons.shopping_bag_outlined,
-                  color: Colors.white, size: 20),
+              icon: const Icon(
+                Icons.shopping_bag_outlined,
+                color: Colors.white,
+                size: 20,
+              ),
               label: Text(
                 "PROCEED TO CHECKOUT",
                 style: GoogleFonts.inter(
@@ -1182,13 +1271,13 @@ class _CateringSelectorScreenState
                 ),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.black,
+                backgroundColor: AppColors.blush,
                 foregroundColor: Colors.white,
                 disabledBackgroundColor: Colors.grey[300],
                 disabledForegroundColor: Colors.grey[600],
                 elevation: 0,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(24),
                 ),
               ),
             ),

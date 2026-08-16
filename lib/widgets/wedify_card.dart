@@ -16,7 +16,7 @@ class WedifyCard extends StatelessWidget {
     this.onTap,
     this.backgroundColor,
     this.borderColor,
-    this.borderRadius = 20,
+    this.borderRadius = 16,
   });
 
   @override
@@ -30,14 +30,6 @@ class WedifyCard extends StatelessWidget {
         color: bg,
         borderRadius: BorderRadius.circular(borderRadius),
         border: Border.all(color: border, width: 1),
-        boxShadow: [
-          if (!isDark && backgroundColor == null)
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 14,
-              offset: const Offset(0, 4),
-            ),
-        ],
       ),
       child: Material(
         color: Colors.transparent,

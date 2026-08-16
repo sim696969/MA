@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  // Pure Black & White Clean Theme Tones
-  static const Color pureBlack = Color(0xFF0F172A);
+  // Elegant Romance palette
+  static const Color warmCream = Color(0xFFFDFBF7);
+  static const Color navy = Color(0xFF161B22);
+  static const Color blush = Color(0xFFE5989B);
+  static const Color sage = Color(0xFF81B29A);
+  static const Color charcoal = Color(0xFF2B2B2B);
+
+  static const Color pureBlack = charcoal;
   static const Color pureWhite = Color(0xFFFFFFFF);
 
   // Slate / Zinc Tones (Shadcn)
@@ -23,22 +29,22 @@ class AppColors {
   static const Color accentLight = Color(0xFFF4F4F5);
   static const Color accentBorder = Color(0xFFE4E4E7);
 
-  // Pink Accent (kept as option)
-  static const Color pinkPrimary = Color(0xFF0F172A); // Black theme accent
-  static const Color pinkLight = Color(0xFFF4F4F5);
-  static const Color pinkBorder = Color(0xFFE4E4E7);
-  static const Color pinkGradientStart = Color(0xFF18181B);
-  static const Color pinkGradientEnd = Color(0xFF000000);
+  // Legacy names retained so existing feature screens inherit the palette.
+  static const Color pinkPrimary = blush;
+  static const Color pinkLight = Color(0xFFFBE7E7);
+  static const Color pinkBorder = Color(0xFFF1C7C9);
+  static const Color pinkGradientStart = Color(0xFFF2B8B5);
+  static const Color pinkGradientEnd = blush;
 
   // Backgrounds
-  static const Color backgroundLight = Color(0xFFFFFFFF);
-  static const Color backgroundDark = slate950;
+  static const Color backgroundLight = warmCream;
+  static const Color backgroundDark = navy;
 
   // Primary
-  static const Color primary = pureBlack;
+  static const Color primary = blush;
   static const Color onPrimary = Colors.white;
 
   // Borders
-  static const Color borderLight = slate200;
-  static const Color borderDark = slate800;
+  static const Color borderLight = Color(0xFFE9E1DC);
+  static const Color borderDark = Color(0xFF334155);
 }

@@ -34,25 +34,18 @@ class WedifyButton extends StatelessWidget {
         width: width,
         height: height,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(30),
+          borderRadius: BorderRadius.circular(24),
           gradient: const LinearGradient(
             colors: [AppColors.pinkGradientStart, AppColors.pinkGradientEnd],
             begin: Alignment.centerLeft,
             end: Alignment.centerRight,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.pinkPrimary.withValues(alpha: 0.35),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
-            ),
-          ],
         ),
         child: Material(
           color: Colors.transparent,
           child: InkWell(
             onTap: isLoading ? null : onPressed,
-            borderRadius: BorderRadius.circular(30),
+            borderRadius: BorderRadius.circular(24),
             child: Center(
               child: _buildContent(Colors.white),
             ),
@@ -71,7 +64,7 @@ class WedifyButton extends StatelessWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.pinkPrimary,
               elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+              shape: const StadiumBorder(),
             ),
             child: _buildContent(Colors.white),
           ),
@@ -84,7 +77,7 @@ class WedifyButton extends StatelessWidget {
             onPressed: isLoading ? null : onPressed,
             style: OutlinedButton.styleFrom(
               side: const BorderSide(color: AppColors.borderLight),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+              shape: const StadiumBorder(),
               foregroundColor: AppColors.slate900,
             ),
             child: _buildContent(theme.colorScheme.onSurface),
@@ -97,7 +90,7 @@ class WedifyButton extends StatelessWidget {
           child: TextButton(
             onPressed: isLoading ? null : onPressed,
             style: TextButton.styleFrom(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+              shape: const StadiumBorder(),
               foregroundColor: AppColors.slate700,
             ),
             child: _buildContent(theme.colorScheme.onSurface),

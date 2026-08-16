@@ -125,6 +125,23 @@ class DatabaseService {
     await docRef.set(data, SetOptions(merge: true));
   }
 
+  /// Update wedding project payment status and transaction info in Firestore.
+  Future<void> updateWeddingProjectPaymentStatus({
+    required String projectId,
+    required String paymentStatus,
+    required String transactionId,
+    required double amountPaid,
+  }) async {
+    final docRef = _db.collection('user_wedding_projects').doc(projectId);
+    await docRef.set({
+      'paymentStatus': paymentStatus,
+      'transactionId': transactionId,
+      'amountPaid': amountPaid,
+      'paymentDate': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
   /// Get the most recent catering order for a project if one exists.
   Future<CateringOrderModel?> getLatestCateringOrder({
     required String projectId,
@@ -305,5 +322,91 @@ class DatabaseService {
   /// Stream layout details.
   Stream<DocumentSnapshot<Map<String, dynamic>>> streamLayout(String layoutId) {
     return _db.collection('layouts').doc(layoutId).snapshots();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Full Project Reset / Bulk Delete Methods (Cancel Wedding)
+  // ---------------------------------------------------------------------------
+
+  /// Delete ALL documents in the guests subcollection for a project.
+  Future<void> deleteAllGuestInvitations({required String projectId}) async {
+    final path = _guestsCollectionPath(projectId);
+    final batch = _db.batch();
+    try {
+      final snapshot = await _db.collection(path).get();
+      for (final doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      if (snapshot.docs.isNotEmpty) {
+        await batch.commit();
+      }
+    } catch (e) {
+      // Individual doc delete fallback if batch fails
+      try {
+        final snapshot = await _db.collection(path).get();
+        for (final doc in snapshot.docs) {
+          await doc.reference.delete();
+        }
+      } catch (_) {}
+    }
+  }
+
+  /// Delete ALL documents in the catering_orders subcollection for a project.
+  Future<void> deleteAllCateringOrders({required String projectId}) async {
+    final path = _cateringOrdersCollectionPath(projectId);
+    final batch = _db.batch();
+    try {
+      final snapshot = await _db.collection(path).get();
+      for (final doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      if (snapshot.docs.isNotEmpty) {
+        await batch.commit();
+      }
+    } catch (e) {
+      try {
+        final snapshot = await _db.collection(path).get();
+        for (final doc in snapshot.docs) {
+          await doc.reference.delete();
+        }
+      } catch (_) {}
+    }
+  }
+
+  /// Delete the standalone layout document linked to a project (if any).
+  Future<void> deleteProjectLayout({required String projectId}) async {
+    try {
+      await _db.collection('layouts').doc(projectId).delete();
+    } catch (_) {}
+    try {
+      await _db.collection('layouts').doc('main_layout').delete();
+    } catch (_) {}
+  }
+
+  /// Delete standalone invitation templates/docs linked to a project.
+  Future<void> deleteProjectInvitations({required String projectId}) async {
+    try {
+      final snapshot = await _db
+          .collection('invitations')
+          .where('projectId', isEqualTo: projectId)
+          .get();
+      final batch = _db.batch();
+      for (final doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      if (snapshot.docs.isNotEmpty) {
+        await batch.commit();
+      }
+    } catch (_) {}
+  }
+
+  /// Convenience: deletes ALL sub-service Firestore data for a project in one call.
+  Future<void> deleteAllProjectSubcollections({required String projectId}) async {
+    await Future.wait([
+      deleteAllGuestInvitations(projectId: projectId),
+      deleteAllCateringOrders(projectId: projectId),
+      deleteProjectLayout(projectId: projectId),
+      deleteProjectInvitations(projectId: projectId),
+    ]);
   }
 }

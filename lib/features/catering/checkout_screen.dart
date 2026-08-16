@@ -6,6 +6,7 @@ import '../../models/wedding_project_model.dart';
 import '../../services/catering_cart_provider.dart';
 import '../../services/database_service.dart';
 import '../../services/wedding_project_provider.dart';
+import '../../widgets/top_right_toast.dart';
 
 class CateringCheckoutScreen extends ConsumerStatefulWidget {
   const CateringCheckoutScreen({super.key});
@@ -21,6 +22,40 @@ class _CateringCheckoutScreenState
   final TextEditingController _notesController = TextEditingController();
   bool _isSubmitting = false;
 
+  Future<void> _showPaymentModificationNotice(
+    PaymentModificationResult result,
+  ) async {
+    if (result.type == PaymentModificationType.refundDue) {
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: Colors.black),
+          ),
+          title: const Text('Booking Updated - Refund Notice'),
+          content: Text(
+            'Your updated total is lower than your previously paid amount. Your payment status remains COMPLETE. Our team will contact you via email regarding your refund process for the price difference of RM ${result.amount.toStringAsFixed(2)}.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    } else if (result.type == PaymentModificationType.balanceDue) {
+      context.showTopRightWarning(
+        'Payment incomplete. RM ${result.amount.toStringAsFixed(2)} is due.',
+      );
+    } else if (result.type == PaymentModificationType.unchanged) {
+      context.showTopRightSuccess('Booking details updated successfully.');
+    }
+  }
+
   @override
   void dispose() {
     _notesController.dispose();
@@ -33,26 +68,24 @@ class _CateringCheckoutScreenState
     final totalAmount = cartNotifier.calculateTotal();
 
     if (orderedItems.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: Colors.black,
-          content: Text(
-            "Your cart is empty.",
-            style: GoogleFonts.inter(color: Colors.white),
-          ),
-        ),
+      context.showTopRightWarning(
+        "Your cart is empty — add some items before checking out.",
       );
       return;
     }
 
     setState(() => _isSubmitting = true);
 
-    final project = ref.read(weddingProjectProvider);
-    final projectId = project.id.isNotEmpty ? project.id : 'project_1';
+    final projectId = ref
+        .read(weddingProjectProvider.notifier)
+        .firestoreProjectDocId;
     final orderId = "order_${DateTime.now().millisecondsSinceEpoch}";
 
     // Determine primary category description
-    final categories = orderedItems.map((e) => e['category'] as String).toSet().toList();
+    final categories = orderedItems
+        .map((e) => e['category'] as String)
+        .toSet()
+        .toList();
     final categorySummary = categories.join(' & ');
 
     final newOrder = CateringOrderModel(
@@ -66,18 +99,19 @@ class _CateringCheckoutScreenState
 
     try {
       // 1. Save order to Firestore
-      await _dbService.saveCateringOrder(
-        projectId: projectId,
-        order: newOrder,
-      );
+      await _dbService.saveCateringOrder(projectId: projectId, order: newOrder);
 
       // 2. Update Wedding Project catering completion status & fee
       final summary = "${orderedItems.length} items ($categorySummary)";
-      await ref.read(weddingProjectProvider.notifier).updateCatering(
+      final paymentResult = await ref
+          .read(weddingProjectProvider.notifier)
+          .updateCatering(
             cateringPackage: summary,
             fee: totalAmount,
             isCompleted: true,
           );
+
+      if (mounted) await _showPaymentModificationNotice(paymentResult);
 
       // 3. Clear cart
       cartNotifier.clearCart();
@@ -164,12 +198,25 @@ class _CateringCheckoutScreenState
               TextButton(
                 onPressed: () {
                   Navigator.of(context).pop(); // Close dialog
-                  Navigator.of(context).popUntil((route) => route.isFirst); // Back to Home
+                  final project = ref.read(weddingProjectProvider);
+                  final result = <String, dynamic>{
+                    'cateringPackage':
+                        project.selectedCateringPackage ?? "Selected Package",
+                    'fee': project.cateringFee > 0
+                        ? project.cateringFee
+                        : totalAmount,
+                  };
+                  Navigator.of(
+                    context,
+                  ).pop(result); // Pop CateringCheckoutScreen with result
                 },
                 style: TextButton.styleFrom(
                   backgroundColor: Colors.black,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -188,15 +235,7 @@ class _CateringCheckoutScreenState
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: Colors.black,
-            content: Text(
-              "Error placing order: $e",
-              style: GoogleFonts.inter(color: Colors.white),
-            ),
-          ),
-        );
+        context.showTopRightError("Error placing catering order: $e");
       }
     } finally {
       if (mounted) {
@@ -224,7 +263,11 @@ class _CateringCheckoutScreenState
           child: Container(color: Colors.black, height: 1.5),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black, size: 20),
+          icon: const Icon(
+            Icons.arrow_back_ios_new,
+            color: Colors.black,
+            size: 20,
+          ),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
@@ -250,13 +293,19 @@ class _CateringCheckoutScreenState
               const SizedBox(height: 24),
 
               // Section 2: Event / Venue Details
-              _buildSectionHeader("EVENT LOCATION & SCHEDULE", Icons.location_on_outlined),
+              _buildSectionHeader(
+                "EVENT LOCATION & SCHEDULE",
+                Icons.location_on_outlined,
+              ),
               const SizedBox(height: 12),
               _buildEventDetailsCard(project),
               const SizedBox(height: 24),
 
               // Section 3: Additional Notes / Special Notices
-              _buildSectionHeader("ADDITIONAL INFORMATION / SPECIAL NOTICES", Icons.edit_note),
+              _buildSectionHeader(
+                "ADDITIONAL INFORMATION / SPECIAL NOTICES",
+                Icons.edit_note,
+              ),
               const SizedBox(height: 12),
               _buildSpecialNoticesInput(),
               const SizedBox(height: 24),
@@ -300,11 +349,7 @@ class _CateringCheckoutScreenState
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.black, width: 2),
         boxShadow: const [
-          BoxShadow(
-            color: Colors.black,
-            offset: Offset(3, 3),
-            blurRadius: 0,
-          ),
+          BoxShadow(color: Colors.black, offset: Offset(3, 3), blurRadius: 0),
         ],
       ),
       padding: const EdgeInsets.all(16),
@@ -328,7 +373,10 @@ class _CateringCheckoutScreenState
                       children: [
                         // Quantity Badge
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.black,
                             borderRadius: BorderRadius.circular(6),
@@ -429,7 +477,11 @@ class _CateringCheckoutScreenState
         children: [
           Row(
             children: [
-              const Icon(Icons.business_outlined, size: 16, color: Colors.black),
+              const Icon(
+                Icons.business_outlined,
+                size: 16,
+                color: Colors.black,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -446,14 +498,15 @@ class _CateringCheckoutScreenState
           const SizedBox(height: 8),
           Row(
             children: [
-              const Icon(Icons.schedule_outlined, size: 16, color: Colors.black),
+              const Icon(
+                Icons.schedule_outlined,
+                size: 16,
+                color: Colors.black,
+              ),
               const SizedBox(width: 8),
               Text(
                 "$dateStr • Banquet Setup at $timeStr",
-                style: GoogleFonts.inter(
-                  color: Colors.black87,
-                  fontSize: 12,
-                ),
+                style: GoogleFonts.inter(color: Colors.black87, fontSize: 12),
               ),
             ],
           ),
@@ -477,10 +530,7 @@ class _CateringCheckoutScreenState
           decoration: InputDecoration(
             hintText:
                 "Enter dietary requirements, allergy warnings (e.g., 'No peanuts / shellfish'), serving timeline, or delivery notes...",
-            hintStyle: GoogleFonts.inter(
-              color: Colors.grey[500],
-              fontSize: 12,
-            ),
+            hintStyle: GoogleFonts.inter(color: Colors.grey[500], fontSize: 12),
             filled: true,
             fillColor: Colors.white,
             contentPadding: const EdgeInsets.all(14),
@@ -510,11 +560,7 @@ class _CateringCheckoutScreenState
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.black, width: 2),
         boxShadow: const [
-          BoxShadow(
-            color: Colors.black,
-            offset: Offset(3, 3),
-            blurRadius: 0,
-          ),
+          BoxShadow(color: Colors.black, offset: Offset(3, 3), blurRadius: 0),
         ],
       ),
       child: Column(
@@ -599,7 +645,11 @@ class _CateringCheckoutScreenState
                   valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                 ),
               )
-            : const Icon(Icons.cloud_done_outlined, color: Colors.white, size: 20),
+            : const Icon(
+                Icons.cloud_done_outlined,
+                color: Colors.white,
+                size: 20,
+              ),
         label: Text(
           _isSubmitting ? "SAVING ORDER..." : "CONFIRM & PLACE ORDER",
           style: GoogleFonts.inter(

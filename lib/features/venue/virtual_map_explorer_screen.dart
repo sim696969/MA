@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import '../../core/theme/app_colors.dart';
 import '../../widgets/open_street_map_widget.dart';
+import '../../widgets/top_right_toast.dart';
 import 'venue_finder_screen.dart';
 
 class VirtualMapExplorerScreen extends StatefulWidget {
@@ -42,6 +44,132 @@ class _VirtualMapExplorerScreenState extends State<VirtualMapExplorerScreen> {
     _mapController.move(point, 12.0);
   }
 
+  Future<void> _locateMe() async {
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        throw StateError('Location services are disabled.');
+      }
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        throw StateError('Location permission was not granted.');
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
+      );
+      _mapController.move(LatLng(position.latitude, position.longitude), 14.0);
+    } catch (error) {
+      if (mounted) context.showTopRightError('Unable to find your location: $error');
+    }
+  }
+
+  void _showVenueDetailsSheet(VenueItem venue) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.warmCream,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.pinkBorder,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Image.network(
+                  venue.imageUrl,
+                  height: 150,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    height: 150,
+                    color: AppColors.pinkLight,
+                    child: const Icon(
+                      Icons.location_city_rounded,
+                      color: AppColors.navy,
+                      size: 48,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                venue.name,
+                style: const TextStyle(
+                  color: AppColors.navy,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                venue.location,
+                style: const TextStyle(color: AppColors.slate600),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                venue.description,
+                style: const TextStyle(color: AppColors.charcoal, height: 1.4),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  const Icon(Icons.groups_outlined, color: AppColors.blush),
+                  const SizedBox(width: 6),
+                  Text(venue.capacity),
+                  const Spacer(),
+                  Text(
+                    '${venue.price} ${venue.priceUnit}',
+                    style: const TextStyle(
+                      color: AppColors.navy,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(sheetContext);
+                    context.showTopRightSuccess('${venue.name} selected');
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.blush,
+                    foregroundColor: Colors.white,
+                    shape: const StadiumBorder(),
+                  ),
+                  child: const Text('Select Venue'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Filter venues on OpenStreetMap based on search query
@@ -65,7 +193,7 @@ class _VirtualMapExplorerScreenState extends State<VirtualMapExplorerScreen> {
         .toList();
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.warmCream,
       body: SafeArea(
         child: Stack(
           children: [
@@ -73,7 +201,8 @@ class _VirtualMapExplorerScreenState extends State<VirtualMapExplorerScreen> {
             OpenStreetMapWidget(
               mapController: _mapController,
               pins: pinsData,
-              initialCenter: widget.venues.isNotEmpty ? widget.venues.first.coordinates : const LatLng(3.1538, 101.7123),
+              initialCenter: const LatLng(5.4141, 100.3288),
+              initialZoom: 12.5,
               selectedPin: _selectedVenue != null
                   ? OsmPinData(
                       id: _selectedVenue!.id,
@@ -92,6 +221,7 @@ class _VirtualMapExplorerScreenState extends State<VirtualMapExplorerScreen> {
                   _customLocationPin = null;
                 });
                 _mapController.move(pin.point, 13.5);
+                _showVenueDetailsSheet(venue);
               },
               onLocationTapped: (point) {
                 setState(() {
@@ -180,6 +310,21 @@ class _VirtualMapExplorerScreenState extends State<VirtualMapExplorerScreen> {
                     ),
                   ),
                 ],
+              ),
+            ),
+
+            Positioned(
+              right: 16,
+              bottom: 124,
+              child: Material(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                elevation: 3,
+                child: IconButton(
+                  tooltip: 'Locate me',
+                  icon: const Icon(Icons.my_location_rounded, color: AppColors.blush),
+                  onPressed: _locateMe,
+                ),
               ),
             ),
 

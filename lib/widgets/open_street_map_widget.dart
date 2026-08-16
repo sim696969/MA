@@ -105,10 +105,10 @@ class _OpenStreetMapWidgetState extends State<OpenStreetMapWidget> {
                             duration: const Duration(milliseconds: 200),
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                             decoration: BoxDecoration(
-                              color: isSelected ? AppColors.slate900 : Colors.white,
-                              borderRadius: BorderRadius.circular(12),
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
                               border: Border.all(
-                                color: isSelected ? AppColors.slate900 : AppColors.slate300,
+                                color: isSelected ? AppColors.navy : AppColors.pinkBorder,
                                 width: 1.5,
                               ),
                               boxShadow: const [
@@ -126,7 +126,7 @@ class _OpenStreetMapWidgetState extends State<OpenStreetMapWidget> {
                               style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w700,
-                                color: isSelected ? Colors.white : AppColors.slate900,
+                                color: AppColors.navy,
                               ),
                             ),
                           ),
@@ -134,7 +134,7 @@ class _OpenStreetMapWidgetState extends State<OpenStreetMapWidget> {
                           Icon(
                             Icons.location_on_rounded,
                             size: isSelected ? 34 : 26,
-                            color: isSelected ? AppColors.slate900 : AppColors.slate800,
+                            color: isSelected ? AppColors.navy : AppColors.blush,
                           ),
                         ],
                       ),
@@ -155,7 +155,7 @@ class _OpenStreetMapWidgetState extends State<OpenStreetMapWidget> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: AppColors.slate900,
+                            color: AppColors.navy,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: const Text(
@@ -166,7 +166,7 @@ class _OpenStreetMapWidgetState extends State<OpenStreetMapWidget> {
                         const Icon(
                           Icons.my_location_rounded,
                           size: 28,
-                          color: AppColors.slate900,
+                          color: AppColors.blush,
                         ),
                       ],
                     ),

@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../core/theme/app_colors.dart';
 import '../../models/guest_invitation_model.dart';
 import '../../services/database_service.dart';
 import '../../services/wedding_project_provider.dart';
+import '../../widgets/top_right_toast.dart';
 
 class InvitationTemplateOption {
   final String id;
@@ -39,14 +41,17 @@ class _InvitationGalleryScreenState
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
-  final TextEditingController _customMessageController =
-      TextEditingController(text: "We request the pleasure of your company to celebrate our wedding.");
+  final TextEditingController _customMessageController = TextEditingController(
+    text: "We request the pleasure of your company to celebrate our wedding.",
+  );
   final TextEditingController _weddingDateTimeController =
       TextEditingController(text: "Saturday, 12 December 2026 at 5:00 PM");
-  final TextEditingController _venueAddressController =
-      TextEditingController(text: "Grand Hyatt Kuala Lumpur, Grand Ballroom");
-  final TextEditingController _hostNamesController =
-      TextEditingController(text: "Sarah & John");
+  final TextEditingController _venueAddressController = TextEditingController(
+    text: "Grand Hyatt Kuala Lumpur, Grand Ballroom",
+  );
+  final TextEditingController _hostNamesController = TextEditingController(
+    text: "Sarah & John",
+  );
 
   // Local state
   final List<GuestInvitationModel> _localGuests = [];
@@ -62,7 +67,8 @@ class _InvitationGalleryScreenState
       id: "minimalist",
       name: "Modern Minimalist",
       type: "Modern Monochrome",
-      description: "Clean typography with bold minimalist black lines and ample white space.",
+      description:
+          "Clean typography with bold minimalist black lines and ample white space.",
       imageUrl:
           "https://images.unsplash.com/photo-1607190074257-dd4b7af0309f?auto=format&fit=crop&w=800&q=80",
     ),
@@ -70,7 +76,8 @@ class _InvitationGalleryScreenState
       id: "royal_gold",
       name: "Royal Gold",
       type: "Luxury Black & Gold",
-      description: "Opulent classic framing with timeless serif aesthetics and regal motifs.",
+      description:
+          "Opulent classic framing with timeless serif aesthetics and regal motifs.",
       imageUrl:
           "https://images.unsplash.com/photo-1515934751635-c81c6bc9a2d8?auto=format&fit=crop&w=800&q=80",
     ),
@@ -78,7 +85,8 @@ class _InvitationGalleryScreenState
       id: "garden_bloom",
       name: "Garden Bloom",
       type: "Botanical Monochrome",
-      description: "Delicate botanical illustrations with subtle editorial elegance.",
+      description:
+          "Delicate botanical illustrations with subtle editorial elegance.",
       imageUrl:
           "https://images.unsplash.com/photo-1510076857177-7470076d4098?auto=format&fit=crop&w=800&q=80",
     ),
@@ -86,7 +94,8 @@ class _InvitationGalleryScreenState
       id: "traditional_batik",
       name: "Traditional Batik",
       type: "Heritage Motif",
-      description: "Intricate traditional geometric batik prints in high-contrast styling.",
+      description:
+          "Intricate traditional geometric batik prints in high-contrast styling.",
       imageUrl:
           "https://images.unsplash.com/photo-1522673607200-1648832cee98?auto=format&fit=crop&w=800&q=80",
     ),
@@ -94,17 +103,41 @@ class _InvitationGalleryScreenState
 
   late InvitationTemplateOption _selectedTemplate;
 
+  bool _isNewEmptyProject() {
+    final project = ref.read(weddingProjectProvider);
+    return !project.isInitialized;
+  }
+
   @override
   void initState() {
     super.initState();
     _selectedTemplate = _templates.first;
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _resetAllLocalInputsToEmpty();
       _initProjectDefaults();
       _subscribeToFirestoreGuests();
     });
   }
 
+  void _resetAllLocalInputsToEmpty() {
+    _nameController.clear();
+    _addressController.clear();
+    _selectedTemplate = _templates.first;
+    _isTemplateSectionExpanded = false;
+    _isCustomizingDetails = false;
+    _isAddingGuest = false;
+    _localGuests.clear();
+    _customMessageController.text =
+        "We request the pleasure of your company to celebrate our wedding.";
+    _weddingDateTimeController.text = "Saturday, 12 December 2026 at 5:00 PM";
+    _venueAddressController.text = "Grand Hyatt Kuala Lumpur, Grand Ballroom";
+    _hostNamesController.text = "Sarah & John";
+  }
+
   void _initProjectDefaults() {
+    // For brand new projects, keep default placeholders — never inherit stale values.
+    if (_isNewEmptyProject()) return;
+
     final project = ref.read(weddingProjectProvider);
     if (project.weddingDate != null) {
       final dateStr =
@@ -119,23 +152,37 @@ class _InvitationGalleryScreenState
   }
 
   void _subscribeToFirestoreGuests() {
-    final project = ref.read(weddingProjectProvider);
-    final projectId = project.id.isNotEmpty ? project.id : 'project_1';
+    final projectId = ref
+        .read(weddingProjectProvider.notifier)
+        .firestoreProjectDocId;
 
     _guestSubscription?.cancel();
-    _guestSubscription = _dbService.streamGuestInvitations(projectId: projectId).listen(
-      (firestoreList) {
-        if (mounted) {
-          setState(() {
-            _localGuests.clear();
-            _localGuests.addAll(firestoreList);
-          });
-        }
-      },
-      onError: (_) {
-        // Keep existing local list if offline
-      },
-    );
+
+    // For brand new projects, do NOT start streaming — always start with empty guest list.
+    if (_isNewEmptyProject()) {
+      if (mounted) {
+        setState(() {
+          _localGuests.clear();
+        });
+      }
+      return;
+    }
+
+    _guestSubscription = _dbService
+        .streamGuestInvitations(projectId: projectId)
+        .listen(
+          (firestoreList) {
+            if (mounted) {
+              setState(() {
+                _localGuests.clear();
+                _localGuests.addAll(firestoreList);
+              });
+            }
+          },
+          onError: (_) {
+            // Keep existing local list if offline
+          },
+        );
   }
 
   @override
@@ -155,8 +202,9 @@ class _InvitationGalleryScreenState
 
     setState(() => _isAddingGuest = true);
 
-    final project = ref.read(weddingProjectProvider);
-    final projectId = project.id.isNotEmpty ? project.id : 'project_1';
+    final projectId = ref
+        .read(weddingProjectProvider.notifier)
+        .firestoreProjectDocId;
     final newId = 'guest_${DateTime.now().millisecondsSinceEpoch}';
 
     final newGuest = GuestInvitationModel(
@@ -182,7 +230,9 @@ class _InvitationGalleryScreenState
       );
 
       // Also update project state if first invitation
-      ref.read(weddingProjectProvider.notifier).updateInvitation(
+      final paymentResult = await ref
+          .read(weddingProjectProvider.notifier)
+          .updateInvitation(
             invitationName: _selectedTemplate.name,
             fee: 150.0,
             isCompleted: true,
@@ -199,20 +249,39 @@ class _InvitationGalleryScreenState
           _isTemplateSectionExpanded = false;
         });
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: Colors.black,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-              side: const BorderSide(color: Colors.white, width: 1),
+        if (paymentResult.type == PaymentModificationType.refundDue) {
+          await showDialog<void>(
+            context: context,
+            builder: (dialogContext) => AlertDialog(
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.transparent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: const BorderSide(color: Colors.black),
+              ),
+              title: const Text('Booking Updated - Refund Notice'),
+              content: Text(
+                'Your updated total is lower than your previously paid amount. Your payment status remains COMPLETE. Our team will contact you via email regarding your refund process for the price difference of RM ${paymentResult.amount.toStringAsFixed(2)}.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('OK'),
+                ),
+              ],
             ),
-            content: Text(
-              "Guest added with ${_selectedTemplate.name}!",
-              style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600),
-            ),
-          ),
-        );
+          );
+        } else if (paymentResult.type == PaymentModificationType.balanceDue) {
+          context.showTopRightWarning(
+            'Payment incomplete. RM ${paymentResult.amount.toStringAsFixed(2)} is due.',
+          );
+        } else {
+          context.showTopRightSuccess(
+            paymentResult.type == PaymentModificationType.unchanged
+                ? 'Booking details updated successfully.'
+                : 'Guest added with ${_selectedTemplate.name}!',
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -222,14 +291,8 @@ class _InvitationGalleryScreenState
           _nameController.clear();
           _addressController.clear();
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: Colors.black,
-            content: Text(
-              "Added locally (offline mode).",
-              style: GoogleFonts.inter(color: Colors.white),
-            ),
-          ),
+        context.showTopRightWarning(
+          "Added locally (offline mode — tap Save later to sync).",
         );
       }
     } finally {
@@ -240,8 +303,9 @@ class _InvitationGalleryScreenState
   }
 
   Future<void> _deleteGuest(GuestInvitationModel guest, int index) async {
-    final project = ref.read(weddingProjectProvider);
-    final projectId = project.id.isNotEmpty ? project.id : 'project_1';
+    final projectId = ref
+        .read(weddingProjectProvider.notifier)
+        .firestoreProjectDocId;
 
     setState(() {
       _localGuests.removeAt(index);
@@ -259,22 +323,17 @@ class _InvitationGalleryScreenState
 
   Future<void> _sendAllInvitations() async {
     if (_localGuests.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: Colors.black,
-          content: Text(
-            "Please add at least one guest before sending.",
-            style: GoogleFonts.inter(color: Colors.white),
-          ),
-        ),
+      context.showTopRightWarning(
+        "Please add at least one guest before sending.",
       );
       return;
     }
 
     setState(() => _isSending = true);
 
-    final project = ref.read(weddingProjectProvider);
-    final projectId = project.id.isNotEmpty ? project.id : 'project_1';
+    final projectId = ref
+        .read(weddingProjectProvider.notifier)
+        .firestoreProjectDocId;
 
     try {
       final updatedCount = await _dbService.sendAllInvitationsBatch(
@@ -334,7 +393,10 @@ class _InvitationGalleryScreenState
                 style: TextButton.styleFrom(
                   backgroundColor: Colors.black,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -353,15 +415,7 @@ class _InvitationGalleryScreenState
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: Colors.black,
-            content: Text(
-              "Error dispatching invitations: $e",
-              style: GoogleFonts.inter(color: Colors.white),
-            ),
-          ),
-        );
+        context.showTopRightError("Error dispatching invitations: $e");
       }
     } finally {
       if (mounted) {
@@ -484,7 +538,11 @@ class _InvitationGalleryScreenState
                     const SizedBox(height: 12),
                     Row(
                       children: [
-                        const Icon(Icons.calendar_today_outlined, size: 16, color: Colors.black),
+                        const Icon(
+                          Icons.calendar_today_outlined,
+                          size: 16,
+                          color: Colors.black,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -501,7 +559,11 @@ class _InvitationGalleryScreenState
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        const Icon(Icons.location_on_outlined, size: 16, color: Colors.black),
+                        const Icon(
+                          Icons.location_on_outlined,
+                          size: 16,
+                          color: Colors.black,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -553,7 +615,9 @@ class _InvitationGalleryScreenState
 
   void _shareGuestCardViaEmail(GuestInvitationModel guest) async {
     final data = guest.customTemplateData;
-    final subject = Uri.encodeComponent("Wedding Invitation for ${guest.guestName}");
+    final subject = Uri.encodeComponent(
+      "Wedding Invitation for ${guest.guestName}",
+    );
     final body = Uri.encodeComponent(
       "Dear ${guest.guestName},\n\n"
       "${data['customMessage'] ?? 'You are cordially invited to celebrate our wedding!'}\n\n"
@@ -564,7 +628,9 @@ class _InvitationGalleryScreenState
       "-- Sent via Wedify App",
     );
 
-    final emailUri = Uri.parse("mailto:${guest.guestAddress}?subject=$subject&body=$body");
+    final emailUri = Uri.parse(
+      "mailto:${guest.guestAddress}?subject=$subject&body=$body",
+    );
     if (await canLaunchUrl(emailUri)) {
       await launchUrl(emailUri);
     }
@@ -575,24 +641,28 @@ class _InvitationGalleryScreenState
     final guestsCount = _localGuests.length;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFFFFFF),
+      backgroundColor: AppColors.backgroundLight,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.navy,
         elevation: 0,
         scrolledUnderElevation: 0,
         titleSpacing: 20,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1.5),
-          child: Container(color: Colors.black, height: 1.5),
+          child: Container(color: AppColors.blush, height: 1.5),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black, size: 20),
+          icon: const Icon(
+            Icons.arrow_back_ios_new,
+            color: Colors.white,
+            size: 20,
+          ),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
           "INVITATIONS & GUESTS",
           style: GoogleFonts.inter(
-            color: Colors.black,
+            color: Colors.white,
             fontWeight: FontWeight.w900,
             fontSize: 18,
             letterSpacing: 1.0,
@@ -601,7 +671,7 @@ class _InvitationGalleryScreenState
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -635,16 +705,9 @@ class _InvitationGalleryScreenState
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
       decoration: BoxDecoration(
-        color: const Color(0xFFFAFAFA),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.black, width: 2),
-        boxShadow: const [
-          BoxShadow(
-            color: Colors.black,
-            offset: Offset(3, 3),
-            blurRadius: 0,
-          ),
-        ],
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.pinkBorder),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -675,7 +738,7 @@ class _InvitationGalleryScreenState
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.black,
+              color: AppColors.navy,
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
@@ -699,14 +762,7 @@ class _InvitationGalleryScreenState
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.black, width: 2),
-        boxShadow: const [
-          BoxShadow(
-            color: Colors.black,
-            offset: Offset(4, 4),
-            blurRadius: 0,
-          ),
-        ],
+        border: Border.all(color: AppColors.pinkBorder),
       ),
       child: Form(
         key: _formKey,
@@ -719,7 +775,7 @@ class _InvitationGalleryScreenState
                   width: 8,
                   height: 8,
                   decoration: const BoxDecoration(
-                    color: Colors.black,
+                    color: AppColors.blush,
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -743,8 +799,9 @@ class _InvitationGalleryScreenState
               label: "GUEST FULL NAME",
               hintText: "e.g., Alexander Wright",
               icon: Icons.person_outline,
-              validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? "Please enter guest name" : null,
+              validator: (v) => (v == null || v.trim().isEmpty)
+                  ? "Please enter guest name"
+                  : null,
             ),
             const SizedBox(height: 14),
 
@@ -787,7 +844,9 @@ class _InvitationGalleryScreenState
                         height: 18,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
                         ),
                       )
                     : const Icon(Icons.add, color: Colors.white, size: 20),
@@ -801,11 +860,11 @@ class _InvitationGalleryScreenState
                   ),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.black,
+                  backgroundColor: AppColors.blush,
                   foregroundColor: Colors.white,
                   elevation: 0,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(24),
                   ),
                 ),
               ),
@@ -831,7 +890,7 @@ class _InvitationGalleryScreenState
         Text(
           label,
           style: GoogleFonts.inter(
-            color: Colors.black,
+            color: AppColors.navy,
             fontWeight: FontWeight.w800,
             fontSize: 11,
             letterSpacing: 0.8,
@@ -843,35 +902,34 @@ class _InvitationGalleryScreenState
           keyboardType: keyboardType,
           maxLines: maxLines,
           style: GoogleFonts.inter(
-            color: Colors.black,
+            color: AppColors.navy,
             fontWeight: FontWeight.w600,
             fontSize: 14,
           ),
           decoration: InputDecoration(
             hintText: hintText,
-            hintStyle: GoogleFonts.inter(
-              color: Colors.grey[500],
-              fontSize: 13,
-            ),
-            prefixIcon: Icon(icon, color: Colors.black, size: 20),
+            hintStyle: GoogleFonts.inter(color: Colors.grey[500], fontSize: 13),
+            prefixIcon: Icon(icon, color: AppColors.blush, size: 20),
             filled: true,
-            fillColor: const Color(0xFFFAFAFA),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            fillColor: AppColors.warmCream,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: Colors.black, width: 1.5),
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(color: AppColors.pinkBorder),
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: Colors.black, width: 1.5),
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(color: AppColors.pinkBorder),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: Colors.black, width: 2.5),
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(color: AppColors.blush, width: 2),
             ),
             errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(16),
               borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
             ),
           ),
@@ -888,13 +946,13 @@ class _InvitationGalleryScreenState
           _isTemplateSectionExpanded = !_isTemplateSectionExpanded;
         });
       },
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(24),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: Colors.black,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.black, width: 1.5),
+          color: AppColors.navy,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppColors.navy),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -946,7 +1004,7 @@ class _InvitationGalleryScreenState
         Text(
           "CHOOSE INVITATION STYLE:",
           style: GoogleFonts.inter(
-            color: Colors.black,
+            color: AppColors.navy,
             fontSize: 11,
             fontWeight: FontWeight.w800,
             letterSpacing: 1.0,
@@ -973,24 +1031,15 @@ class _InvitationGalleryScreenState
                   _selectedTemplate = t;
                 });
               },
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(16),
               child: Container(
                 decoration: BoxDecoration(
-                  color: isSelected ? Colors.black : Colors.white,
-                  borderRadius: BorderRadius.circular(12),
+                  color: isSelected ? AppColors.navy : Colors.white,
+                  borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: Colors.black,
-                    width: isSelected ? 2.5 : 1.5,
+                    color: isSelected ? AppColors.navy : AppColors.pinkBorder,
+                    width: isSelected ? 2 : 1,
                   ),
-                  boxShadow: isSelected
-                      ? const [
-                          BoxShadow(
-                            color: Colors.black,
-                            offset: Offset(3, 3),
-                            blurRadius: 0,
-                          ),
-                        ]
-                      : null,
                 ),
                 clipBehavior: Clip.antiAlias,
                 child: Column(
@@ -1011,7 +1060,7 @@ class _InvitationGalleryScreenState
                                   margin: const EdgeInsets.all(6),
                                   padding: const EdgeInsets.all(4),
                                   decoration: const BoxDecoration(
-                                    color: Colors.black,
+                                    color: AppColors.blush,
                                     shape: BoxShape.circle,
                                   ),
                                   child: const Icon(
@@ -1042,8 +1091,9 @@ class _InvitationGalleryScreenState
                           Text(
                             t.type,
                             style: GoogleFonts.inter(
-                              color:
-                                  isSelected ? Colors.white70 : Colors.black54,
+                              color: isSelected
+                                  ? Colors.white70
+                                  : Colors.black54,
                               fontSize: 10,
                             ),
                           ),
@@ -1063,9 +1113,9 @@ class _InvitationGalleryScreenState
   Widget _buildCustomizationAccordion() {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFFAFAFA),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.black, width: 1.5),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.pinkBorder),
       ),
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
@@ -1075,7 +1125,7 @@ class _InvitationGalleryScreenState
             setState(() => _isCustomizingDetails = expanded);
           },
           tilePadding: const EdgeInsets.symmetric(horizontal: 14),
-          leading: const Icon(Icons.tune, color: Colors.black, size: 20),
+          leading: const Icon(Icons.tune, color: AppColors.blush, size: 20),
           title: Text(
             "CUSTOMIZE INVITATION DETAILS",
             style: GoogleFonts.inter(
@@ -1167,20 +1217,17 @@ class _InvitationGalleryScreenState
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
         decoration: BoxDecoration(
-          color: const Color(0xFFFAFAFA),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.black, width: 2),
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black,
-              offset: Offset(3, 3),
-              blurRadius: 0,
-            ),
-          ],
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.pinkBorder),
         ),
         child: Column(
           children: [
-            const Icon(Icons.mail_outline_rounded, size: 48, color: Colors.black),
+            const Icon(
+              Icons.mail_outline_rounded,
+              size: 48,
+            color: AppColors.blush,
+            ),
             const SizedBox(height: 12),
             Text(
               "NO GUESTS ADDED YET",
@@ -1195,10 +1242,7 @@ class _InvitationGalleryScreenState
             Text(
               "Fill in the guest details above and choose a template to create cards.",
               textAlign: TextAlign.center,
-              style: GoogleFonts.inter(
-                color: Colors.black54,
-                fontSize: 12,
-              ),
+              style: GoogleFonts.inter(color: Colors.black54, fontSize: 12),
             ),
           ],
         ),
@@ -1217,19 +1261,14 @@ class _InvitationGalleryScreenState
         return Container(
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.black, width: 2),
-            boxShadow: const [
-              BoxShadow(
-                color: Colors.black,
-                offset: Offset(3, 3),
-                blurRadius: 0,
-              ),
-            ],
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.pinkBorder),
           ),
           child: ListTile(
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 8,
+            ),
             leading: CircleAvatar(
               backgroundColor: isSent ? Colors.black : Colors.white,
               foregroundColor: isSent ? Colors.white : Colors.black,
@@ -1264,8 +1303,10 @@ class _InvitationGalleryScreenState
                   ),
                 ),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: isSent ? Colors.black : const Color(0xFFEEEEEE),
                     borderRadius: BorderRadius.circular(6),
@@ -1297,8 +1338,10 @@ class _InvitationGalleryScreenState
                 ),
                 const SizedBox(height: 6),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFFAFAFA),
                     borderRadius: BorderRadius.circular(6),
@@ -1319,7 +1362,10 @@ class _InvitationGalleryScreenState
               mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
-                  icon: const Icon(Icons.remove_red_eye_outlined, color: Colors.black),
+                  icon: const Icon(
+                    Icons.remove_red_eye_outlined,
+                    color: Colors.black,
+                  ),
                   tooltip: "Preview Card",
                   onPressed: () => _previewInvitation(guest),
                 ),
@@ -1340,16 +1386,9 @@ class _InvitationGalleryScreenState
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.black,
+        color: AppColors.navy,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.black, width: 2),
-        boxShadow: const [
-          BoxShadow(
-            color: Colors.black26,
-            offset: Offset(0, 8),
-            blurRadius: 16,
-          ),
-        ],
+        border: Border.all(color: AppColors.navy),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1385,11 +1424,11 @@ class _InvitationGalleryScreenState
             child: ElevatedButton(
               onPressed: _isSending ? null : _sendAllInvitations,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: Colors.black,
+                backgroundColor: AppColors.blush,
+                foregroundColor: Colors.white,
                 elevation: 0,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(24),
                 ),
               ),
               child: _isSending
