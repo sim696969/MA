@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import '../../models/wedding_project_model.dart';
 import '../../services/wedding_project_provider.dart';
+import '../../services/notification_provider.dart';
 import '../../widgets/top_right_toast.dart';
 
 // NOTE: In a production app the secret key must never live in client code.
@@ -172,6 +173,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 : amountToCharge),
             paymentDate: DateTime.now(),
           );
+      await ref
+          .read(notificationProvider.notifier)
+          .synchronizeProjectState(ref.read(weddingProjectProvider));
 
       // D – Clear all sensitive card input data immediately after successful payment
       if (mounted) {

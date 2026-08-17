@@ -7,6 +7,7 @@ import '../../core/theme/app_colors.dart';
 import '../../models/wedding_project_model.dart';
 import '../../services/wedding_project_provider.dart';
 import '../../services/catering_cart_provider.dart';
+import '../../services/notification_provider.dart';
 import '../auth/auth_screen.dart';
 import '../venue/venue_finder_screen.dart';
 import '../planner/layout_planner_screen.dart';
@@ -14,6 +15,7 @@ import '../invitation/invitation_gallery_screen.dart';
 import '../catering/catering_selector_screen.dart';
 import '../checkout/checkout_screen.dart';
 import '../auth/user_profile_screen.dart';
+import '../notifications/notification_center_screen.dart';
 import '../../services/auth_session_service.dart';
 import '../../widgets/top_right_toast.dart';
 
@@ -651,6 +653,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final project = ref.watch(weddingProjectProvider);
+    final unreadCount = ref.watch(unreadNotificationCountProvider);
 
     return Scaffold(
       backgroundColor: AppColors.backgroundLight,
@@ -787,6 +790,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
             _buildNavItem(
               index: 1,
+              icon: Icons.notifications_none_rounded,
+              activeIcon: Icons.notifications_rounded,
+              unreadCount: unreadCount,
+            ),
+            _buildNavItem(
+              index: 2,
               icon: Icons.person_outline_rounded,
               activeIcon: Icons.person_rounded,
             ),
@@ -1522,12 +1531,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     required IconData icon,
     required IconData activeIcon,
     bool showDot = false,
+    int unreadCount = 0,
   }) {
     final isSelected = _currentNavIndex == index;
     return GestureDetector(
       onTap: () async {
         setState(() => _currentNavIndex = index);
         if (index == 1) {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const NotificationCenterScreen()),
+          );
+          if (mounted) {
+            setState(() => _currentNavIndex = 0);
+          }
+        } else if (index == 2) {
           await Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => const UserProfileScreen()),
@@ -1540,10 +1558,37 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            isSelected ? activeIcon : icon,
-            color: isSelected ? AppColors.pinkPrimary : Colors.white70,
-            size: 26,
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Icon(
+                isSelected ? activeIcon : icon,
+                color: isSelected ? AppColors.pinkPrimary : Colors.white70,
+                size: 26,
+              ),
+              if (unreadCount > 0)
+                Positioned(
+                  right: -8,
+                  top: -8,
+                  child: Container(
+                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    alignment: Alignment.center,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFE57373),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      unreadCount > 99 ? '99+' : '$unreadCount',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
           if (showDot && isSelected) ...[
             const SizedBox(height: 4),
