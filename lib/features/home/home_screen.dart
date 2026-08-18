@@ -7,17 +7,15 @@ import '../../core/theme/app_colors.dart';
 import '../../models/wedding_project_model.dart';
 import '../../services/wedding_project_provider.dart';
 import '../../services/catering_cart_provider.dart';
-import '../../services/notification_provider.dart';
 import '../auth/auth_screen.dart';
 import '../venue/venue_finder_screen.dart';
 import '../planner/layout_planner_screen.dart';
 import '../invitation/invitation_gallery_screen.dart';
 import '../catering/catering_selector_screen.dart';
 import '../checkout/checkout_screen.dart';
-import '../auth/user_profile_screen.dart';
-import '../notifications/notification_center_screen.dart';
 import '../../services/auth_session_service.dart';
 import '../../widgets/top_right_toast.dart';
+import '../../widgets/app_bottom_nav_bar.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -27,12 +25,9 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  int _currentNavIndex = 0;
-
   // Calendar State
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedCalendarDay;
-  CalendarFormat _calendarFormat = CalendarFormat.month;
 
   // ────────────────────────────────────────────────────────────────────────────
   // Centralized Complete Booking Reset.
@@ -48,7 +43,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       setState(() {
         _focusedDay = DateTime.now();
         _selectedCalendarDay = null;
-        _calendarFormat = CalendarFormat.month;
       });
     }
 
@@ -653,7 +647,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final project = ref.watch(weddingProjectProvider);
-    final unreadCount = ref.watch(unreadNotificationCountProvider);
 
     return Scaffold(
       backgroundColor: AppColors.backgroundLight,
@@ -773,35 +766,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
 
       // Bottom Navigation Bar
-      bottomNavigationBar: Container(
-        height: 72,
-        decoration: BoxDecoration(
-          color: AppColors.navy,
-          border: const Border(top: BorderSide(color: AppColors.navy)),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _buildNavItem(
-              index: 0,
-              icon: Icons.home_outlined,
-              activeIcon: Icons.home_rounded,
-              showDot: true,
-            ),
-            _buildNavItem(
-              index: 1,
-              icon: Icons.notifications_none_rounded,
-              activeIcon: Icons.notifications_rounded,
-              unreadCount: unreadCount,
-            ),
-            _buildNavItem(
-              index: 2,
-              icon: Icons.person_outline_rounded,
-              activeIcon: Icons.person_rounded,
-            ),
-          ],
-        ),
-      ),
+      bottomNavigationBar: const WedifyBottomNavigationBar(currentIndex: 0),
     );
   }
 
@@ -1469,7 +1434,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         firstDay: DateTime.now().subtract(const Duration(days: 365)),
         lastDay: DateTime.now().add(const Duration(days: 1095)),
         focusedDay: _focusedDay,
-        calendarFormat: _calendarFormat,
+        calendarFormat: CalendarFormat.month,
+        availableCalendarFormats: const {
+          CalendarFormat.month: 'Month',
+        },
+        sixWeekMonthsEnforced: false,
+        rowHeight: 46,
+        daysOfWeekHeight: 28,
         selectedDayPredicate: (day) {
           if (bookedDate != null && isSameDay(bookedDate, day)) {
             return true;
@@ -1481,9 +1452,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             _selectedCalendarDay = selectedDay;
             _focusedDay = focusedDay;
           });
-        },
-        onFormatChanged: (format) {
-          setState(() => _calendarFormat = format);
         },
         calendarStyle: CalendarStyle(
           selectedDecoration: const BoxDecoration(
@@ -1521,87 +1489,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             color: AppColors.slate700,
           ),
         ),
-      ),
-    );
-  }
-
-  // Navigation Item
-  Widget _buildNavItem({
-    required int index,
-    required IconData icon,
-    required IconData activeIcon,
-    bool showDot = false,
-    int unreadCount = 0,
-  }) {
-    final isSelected = _currentNavIndex == index;
-    return GestureDetector(
-      onTap: () async {
-        setState(() => _currentNavIndex = index);
-        if (index == 1) {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const NotificationCenterScreen()),
-          );
-          if (mounted) {
-            setState(() => _currentNavIndex = 0);
-          }
-        } else if (index == 2) {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const UserProfileScreen()),
-          );
-          if (mounted) {
-            setState(() => _currentNavIndex = 0);
-          }
-        }
-      },
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Icon(
-                isSelected ? activeIcon : icon,
-                color: isSelected ? AppColors.pinkPrimary : Colors.white70,
-                size: 26,
-              ),
-              if (unreadCount > 0)
-                Positioned(
-                  right: -8,
-                  top: -8,
-                  child: Container(
-                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    alignment: Alignment.center,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFE57373),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Text(
-                      unreadCount > 99 ? '99+' : '$unreadCount',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          if (showDot && isSelected) ...[
-            const SizedBox(height: 4),
-            Container(
-              width: 5,
-              height: 5,
-              decoration: const BoxDecoration(
-                color: AppColors.pinkPrimary,
-                shape: BoxShape.circle,
-              ),
-            ),
-          ],
-        ],
       ),
     );
   }

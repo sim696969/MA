@@ -5,6 +5,7 @@ import '../../core/theme/app_colors.dart';
 import '../../models/notification_model.dart';
 import '../../services/notification_provider.dart';
 import '../../services/wedding_project_provider.dart';
+import '../../widgets/app_bottom_nav_bar.dart';
 import '../checkout/checkout_screen.dart';
 
 class NotificationCenterScreen extends ConsumerWidget {
@@ -83,6 +84,7 @@ class NotificationCenterScreen extends ConsumerWidget {
                 ),
               ),
             ),
+      bottomNavigationBar: const WedifyBottomNavigationBar(currentIndex: 1),
     );
   }
 

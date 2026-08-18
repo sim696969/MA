@@ -172,7 +172,7 @@ class EventDetailsScreen extends StatelessWidget {
             Container(
               width: 52,
               height: 52,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: AppColors.slate100,
                 shape: BoxShape.circle,
               ),
@@ -215,7 +215,7 @@ class EventDetailsScreen extends StatelessWidget {
             Container(
               width: 52,
               height: 52,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: AppColors.slate100,
                 shape: BoxShape.circle,
               ),

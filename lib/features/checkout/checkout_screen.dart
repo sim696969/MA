@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,7 +9,6 @@ import 'package:intl/intl.dart';
 import '../../models/wedding_project_model.dart';
 import '../../services/wedding_project_provider.dart';
 import '../../services/notification_provider.dart';
-import '../../widgets/top_right_toast.dart';
 
 // NOTE: In a production app the secret key must never live in client code.
 // For this sandbox/test assignment it is embedded directly.

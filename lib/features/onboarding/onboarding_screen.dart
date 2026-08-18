@@ -219,10 +219,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
             ),
             // Floating Hearts
-            Positioned(
+            const Positioned(
               top: 75,
               child: Row(
-                children: const [
+                children: [
                   Icon(Icons.favorite_rounded, size: 24, color: AppColors.pinkPrimary),
                   SizedBox(width: 8),
                   Icon(Icons.favorite_rounded, size: 18, color: Color(0xFFFF85A1)),
@@ -267,9 +267,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 child: const Icon(Icons.castle_rounded, size: 64, color: AppColors.pinkPrimary),
               ),
               const SizedBox(height: 10),
-              Row(
+              const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
+                children: [
                   Icon(Icons.architecture_rounded, color: AppColors.slate700, size: 28),
                   SizedBox(width: 12),
                   Icon(Icons.map_rounded, color: AppColors.pinkPrimary, size: 28),
@@ -295,9 +295,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 child: const Icon(Icons.mark_email_unread_rounded, size: 64, color: AppColors.pinkPrimary),
               ),
               const SizedBox(height: 10),
-              Row(
+              const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
+                children: [
                   Icon(Icons.restaurant_menu_rounded, color: AppColors.slate700, size: 28),
                   SizedBox(width: 12),
                   Icon(Icons.cake_rounded, color: AppColors.pinkPrimary, size: 28),

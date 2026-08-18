@@ -123,7 +123,7 @@ class _OpenStreetMapWidgetState extends State<OpenStreetMapWidget> {
                               "${pin.title} • ${pin.price}",
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w700,
                                 color: AppColors.navy,

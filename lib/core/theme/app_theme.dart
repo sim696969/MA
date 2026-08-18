@@ -8,6 +8,8 @@ class AppTheme {
       useMaterial3: true,
       brightness: Brightness.light,
       primaryColor: AppColors.pinkPrimary,
+      splashColor: AppColors.pinkPrimary.withValues(alpha: 0.1),
+      highlightColor: AppColors.pinkPrimary.withValues(alpha: 0.05),
       scaffoldBackgroundColor: AppColors.backgroundLight,
       textTheme: GoogleFonts.interTextTheme(ThemeData.light().textTheme),
       colorScheme: const ColorScheme.light(
@@ -81,8 +83,10 @@ class AppTheme {
           fontSize: 14,
         ),
       ),
-      textSelectionTheme: const TextSelectionThemeData(
-        cursorColor: AppColors.charcoal,
+      textSelectionTheme: TextSelectionThemeData(
+        cursorColor: AppColors.slate900,
+        selectionColor: AppColors.pinkPrimary.withValues(alpha: 0.25),
+        selectionHandleColor: AppColors.pinkPrimary,
       ),
     );
   }
@@ -92,6 +96,8 @@ class AppTheme {
       useMaterial3: true,
       brightness: Brightness.dark,
       primaryColor: AppColors.pinkPrimary,
+      splashColor: AppColors.pinkPrimary.withValues(alpha: 0.15),
+      highlightColor: AppColors.pinkPrimary.withValues(alpha: 0.08),
       scaffoldBackgroundColor: AppColors.backgroundDark,
       textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
       colorScheme: const ColorScheme.dark(
@@ -165,7 +171,11 @@ class AppTheme {
           fontSize: 14,
         ),
       ),
-      textSelectionTheme: const TextSelectionThemeData(cursorColor: Colors.white),
+      textSelectionTheme: TextSelectionThemeData(
+        cursorColor: Colors.white,
+        selectionColor: AppColors.pinkPrimary.withValues(alpha: 0.35),
+        selectionHandleColor: AppColors.pinkPrimary,
+      ),
     );
   }
 }

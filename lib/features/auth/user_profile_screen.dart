@@ -5,7 +5,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/theme/app_colors.dart';
 import '../../services/auth_session_service.dart';
 import '../../services/database_service.dart';
+import '../../services/notification_provider.dart';
+import '../../widgets/app_bottom_nav_bar.dart';
 import '../auth/auth_screen.dart';
+import '../notifications/notification_center_screen.dart';
 
 class UserProfileScreen extends ConsumerStatefulWidget {
   const UserProfileScreen({super.key});
@@ -16,7 +19,6 @@ class UserProfileScreen extends ConsumerStatefulWidget {
 
 class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
   final DatabaseService _dbService = DatabaseService();
-  int _currentNavIndex = 1; // Profile active
 
   bool _isLoading = true;
 
@@ -156,6 +158,48 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
         ),
         centerTitle: true,
         actions: [
+          Consumer(
+            builder: (context, ref, _) {
+              final unreadCount = ref.watch(unreadNotificationCountProvider);
+              return IconButton(
+                tooltip: 'Notifications',
+                icon: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    const Icon(Icons.notifications_none_rounded, color: AppColors.slate900, size: 24),
+                    if (unreadCount > 0)
+                      Positioned(
+                        right: -4,
+                        top: -4,
+                        child: Container(
+                          constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          alignment: Alignment.center,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFE57373),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            unreadCount > 99 ? '99+' : '$unreadCount',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const NotificationCenterScreen()),
+                  );
+                },
+              );
+            },
+          ),
           IconButton(
             tooltip: 'Logout',
             icon: const Icon(Icons.logout_rounded, color: AppColors.pinkPrimary),
@@ -330,20 +374,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
             ),
 
       // Bottom Navigation Bar matching Dashboard
-      bottomNavigationBar: Container(
-        height: 72,
-        decoration: BoxDecoration(
-          color: AppColors.navy,
-          border: const Border(top: BorderSide(color: AppColors.navy)),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _buildNavItem(index: 0, icon: Icons.home_outlined, activeIcon: Icons.home_rounded),
-            _buildNavItem(index: 1, icon: Icons.person_outline_rounded, activeIcon: Icons.person_rounded, showDot: true),
-          ],
-        ),
-      ),
+      bottomNavigationBar: const WedifyBottomNavigationBar(currentIndex: 2),
     );
   }
 
@@ -381,45 +412,6 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildNavItem({
-    required int index,
-    required IconData icon,
-    required IconData activeIcon,
-    bool showDot = false,
-  }) {
-    final isSelected = _currentNavIndex == index;
-    return GestureDetector(
-      onTap: () {
-        if (index == 0) {
-          Navigator.pop(context);
-        } else {
-          setState(() => _currentNavIndex = index);
-        }
-      },
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            isSelected ? activeIcon : icon,
-            color: isSelected ? AppColors.pinkPrimary : Colors.white70,
-            size: 26,
-          ),
-          if (showDot && isSelected) ...[
-            const SizedBox(height: 4),
-            Container(
-              width: 5,
-              height: 5,
-              decoration: const BoxDecoration(
-                color: AppColors.pinkPrimary,
-                shape: BoxShape.circle,
-              ),
-            ),
-          ],
-        ],
-      ),
     );
   }
 }

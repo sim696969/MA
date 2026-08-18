@@ -35,6 +35,24 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   void initState() {
     super.initState();
     _isRegistering = widget.isRegistering;
+    _nameController.addListener(_onInputChanged);
+    _emailController.addListener(_onInputChanged);
+    _phoneController.addListener(_onInputChanged);
+    _passwordController.addListener(_onInputChanged);
+  }
+
+  void _onInputChanged() {
+    if (mounted) setState(() {});
+  }
+
+  bool get _hasValidInput {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+    if (_isRegistering) {
+      final name = _nameController.text.trim();
+      return name.isNotEmpty && email.isNotEmpty && password.isNotEmpty;
+    }
+    return email.isNotEmpty && password.isNotEmpty;
   }
 
   void _showAuthSnackBar(String message, {bool isError = true}) {
@@ -229,6 +247,10 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
   @override
   void dispose() {
+    _nameController.removeListener(_onInputChanged);
+    _emailController.removeListener(_onInputChanged);
+    _phoneController.removeListener(_onInputChanged);
+    _passwordController.removeListener(_onInputChanged);
     _nameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
@@ -238,14 +260,19 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      behavior: HitTestBehavior.translucent,
+      child: Scaffold(
+        backgroundColor: AppColors.backgroundLight,
+        body: SafeArea(
+          child: SelectionArea(
+            selectionControls: null,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
               const SizedBox(height: 20),
               // Brand Logo Header
               Center(
@@ -304,16 +331,32 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(color: AppColors.slate200),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.04),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
                   child: Column(
                     children: <Widget>[
                       if (_isRegistering) ...[
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                           child: TextField(
                             controller: _nameController,
+                            style: const TextStyle(
+                              color: AppColors.slate900,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            cursorColor: AppColors.slate900,
                             decoration: const InputDecoration(
                               hintText: "Full Name",
+                              hintStyle: TextStyle(color: AppColors.slate400, fontSize: 14, fontWeight: FontWeight.normal),
+                              fillColor: Colors.transparent,
+                              filled: true,
                               border: InputBorder.none,
                               enabledBorder: InputBorder.none,
                               focusedBorder: InputBorder.none,
@@ -324,14 +367,22 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                         const Divider(height: 1, color: AppColors.slate100),
                       ],
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                         child: TextField(
                           controller: _emailController,
                           keyboardType: TextInputType.emailAddress,
+                          style: const TextStyle(
+                            color: AppColors.slate900,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                          ),
                           cursorColor: AppColors.slate900,
-                          cursorWidth: 2.5,
+                          cursorWidth: 2.0,
                           decoration: const InputDecoration(
                             hintText: "Email address",
+                            hintStyle: TextStyle(color: AppColors.slate400, fontSize: 14, fontWeight: FontWeight.normal),
+                            fillColor: Colors.transparent,
+                            filled: true,
                             border: InputBorder.none,
                             enabledBorder: InputBorder.none,
                             focusedBorder: InputBorder.none,
@@ -342,12 +393,21 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                       const Divider(height: 1, color: AppColors.slate100),
                       if (_isRegistering) ...[
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                           child: TextField(
                             controller: _phoneController,
                             keyboardType: TextInputType.phone,
+                            style: const TextStyle(
+                              color: AppColors.slate900,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            cursorColor: AppColors.slate900,
                             decoration: const InputDecoration(
                               hintText: "Phone Number (optional)",
+                              hintStyle: TextStyle(color: AppColors.slate400, fontSize: 14, fontWeight: FontWeight.normal),
+                              fillColor: Colors.transparent,
+                              filled: true,
                               border: InputBorder.none,
                               enabledBorder: InputBorder.none,
                               focusedBorder: InputBorder.none,
@@ -358,16 +418,24 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                         const Divider(height: 1, color: AppColors.slate100),
                       ],
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                         child: TextField(
                           controller: _passwordController,
                           obscureText: true,
                           autocorrect: false,
                           enableSuggestions: false,
+                          style: const TextStyle(
+                            color: AppColors.slate900,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                          ),
                           cursorColor: AppColors.slate900,
-                          cursorWidth: 2.5,
+                          cursorWidth: 2.0,
                           decoration: const InputDecoration(
                             hintText: "Password",
+                            hintStyle: TextStyle(color: AppColors.slate400, fontSize: 14, fontWeight: FontWeight.normal),
+                            fillColor: Colors.transparent,
+                            filled: true,
                             border: InputBorder.none,
                             enabledBorder: InputBorder.none,
                             focusedBorder: InputBorder.none,
@@ -407,14 +475,33 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
               // Submit Button (Sign In / Register)
               FadeInUp(
                 duration: const Duration(milliseconds: 1000),
-                child: Container(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeInOut,
                   width: double.infinity,
                   height: 54,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(24),
-                    gradient: const LinearGradient(
-                      colors: [AppColors.pinkGradientStart, AppColors.pinkGradientEnd],
-                    ),
+                    gradient: _hasValidInput
+                        ? const LinearGradient(
+                            colors: [Color(0xFFD9777F), Color(0xFFC85A65)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          )
+                        : const LinearGradient(
+                            colors: [AppColors.pinkGradientStart, AppColors.pinkGradientEnd],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                    boxShadow: _hasValidInput
+                        ? [
+                            BoxShadow(
+                              color: const Color(0xFFC85A65).withValues(alpha: 0.35),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ]
+                        : null,
                   ),
                   child: Material(
                     color: Colors.transparent,
@@ -469,8 +556,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
               const SizedBox(height: 24),
               FadeInUp(
                 duration: const Duration(milliseconds: 1200),
-                child: Row(
-                  children: const [
+                child: const Row(
+                  children: [
                     Expanded(child: Divider(color: AppColors.slate200)),
                     Padding(
                       padding: EdgeInsets.symmetric(horizontal: 16),
@@ -496,9 +583,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
                       backgroundColor: Colors.white,
                     ),
-                    child: Row(
+                    child: const Row(
                       mainAxisAlignment: MainAxisAlignment.center,
-                      children: const [
+                      children: [
                         Icon(Icons.g_mobiledata, size: 30, color: AppColors.slate900),
                         SizedBox(width: 8),
                         Text(
@@ -519,6 +606,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
             ],
           ),
         ),
+      ),
+      ),
       ),
     );
   }

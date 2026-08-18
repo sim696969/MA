@@ -321,22 +321,39 @@ class _VenueFinderScreenState extends ConsumerState<VenueFinderScreen> {
                     child: Container(
                       height: 48,
                       decoration: BoxDecoration(
-                        color: AppColors.slate100.withValues(alpha: 0.7),
+                        color: Colors.white,
                         borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: AppColors.slate200),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.04),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
                       ),
                       child: TextField(
                         onChanged: (val) => setState(() => _searchQuery = val),
+                        style: const TextStyle(
+                          color: AppColors.slate900,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        cursorColor: AppColors.slate900,
                         decoration: const InputDecoration(
                           hintText: "Find your venue",
                           hintStyle: TextStyle(
                             color: AppColors.slate400,
                             fontSize: 14,
+                            fontWeight: FontWeight.normal,
                           ),
                           prefixIcon: Icon(
                             Icons.search_rounded,
-                            color: AppColors.slate400,
+                            color: AppColors.slate500,
                             size: 20,
                           ),
+                          fillColor: Colors.transparent,
+                          filled: true,
                           border: InputBorder.none,
                           enabledBorder: InputBorder.none,
                           focusedBorder: InputBorder.none,
@@ -457,10 +474,10 @@ class _VenueFinderScreenState extends ConsumerState<VenueFinderScreen> {
             // 5. Famous Venues List View
             Expanded(
               child: filteredVenues.isEmpty
-                  ? Center(
+                  ? const Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
-                        children: const [
+                        children: [
                           Icon(
                             Icons.search_off_rounded,
                             size: 48,
@@ -1083,11 +1100,11 @@ class _VenueFinderScreenState extends ConsumerState<VenueFinderScreen> {
                       // 3. Social Proof / Reviewers + Star Rating
                       Row(
                         children: [
-                          SizedBox(
+                          const SizedBox(
                             width: 60,
                             height: 28,
                             child: Stack(
-                              children: const [
+                              children: [
                                 Positioned(
                                   left: 0,
                                   child: CircleAvatar(
