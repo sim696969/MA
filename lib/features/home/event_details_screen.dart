@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
+import '../../widgets/wedify_back_button.dart';
 
 class EventDetailsScreen extends StatelessWidget {
   final String title;
@@ -26,17 +27,11 @@ class EventDetailsScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        leading: Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: Container(
-            decoration: BoxDecoration(
-              color: AppColors.slate100,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: AppColors.slate900),
-              onPressed: () => Navigator.pop(context),
-            ),
+        leadingWidth: 64,
+        leading: const Padding(
+          padding: EdgeInsets.only(left: 12),
+          child: Center(
+            child: WedifyBackButton(),
           ),
         ),
         title: const Text(

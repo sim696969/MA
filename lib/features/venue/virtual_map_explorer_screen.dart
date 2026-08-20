@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import '../../core/theme/app_colors.dart';
+import '../../services/wedding_project_provider.dart';
 import '../../widgets/open_street_map_widget.dart';
 import '../../widgets/top_right_toast.dart';
+import '../../widgets/wedify_back_button.dart';
 import 'venue_finder_screen.dart';
 
-class VirtualMapExplorerScreen extends StatefulWidget {
+class VirtualMapExplorerScreen extends ConsumerStatefulWidget {
   final List<VenueItem> venues;
 
   const VirtualMapExplorerScreen({
@@ -16,10 +19,10 @@ class VirtualMapExplorerScreen extends StatefulWidget {
   });
 
   @override
-  State<VirtualMapExplorerScreen> createState() => _VirtualMapExplorerScreenState();
+  ConsumerState<VirtualMapExplorerScreen> createState() => _VirtualMapExplorerScreenState();
 }
 
-class _VirtualMapExplorerScreenState extends State<VirtualMapExplorerScreen> {
+class _VirtualMapExplorerScreenState extends ConsumerState<VirtualMapExplorerScreen> {
   final TextEditingController _addressSearchController = TextEditingController();
   final MapController _mapController = MapController();
   String _addressQuery = "";
@@ -151,9 +154,28 @@ class _VirtualMapExplorerScreenState extends State<VirtualMapExplorerScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(sheetContext);
-                    context.showTopRightSuccess('${venue.name} selected');
+                  onPressed: () async {
+                    final fee = double.tryParse(
+                          venue.price.replaceAll(RegExp(r'[^0-9.]'), ''),
+                        ) ??
+                        0.0;
+                    try {
+                      await ref
+                          .read(weddingProjectProvider.notifier)
+                          .bookVenue(
+                            venueName: venue.name,
+                            venueId: venue.id,
+                            venueAddress: venue.location,
+                            fee: fee,
+                          );
+                      if (!sheetContext.mounted) return;
+                      Navigator.pop(sheetContext);
+                      sheetContext.showTopRightSuccess('${venue.name} booked successfully!');
+                    } catch (e) {
+                      if (!sheetContext.mounted) return;
+                      Navigator.pop(sheetContext);
+                      sheetContext.showTopRightError('Unable to book venue: $e');
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.blush,
@@ -240,26 +262,7 @@ class _VirtualMapExplorerScreenState extends State<VirtualMapExplorerScreen> {
               right: 16,
               child: Row(
                 children: [
-                  // Back Arrow Navigation Button
-                  Container(
-                    width: 46,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Colors.black12,
-                          blurRadius: 10,
-                          offset: Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                    child: IconButton(
-                      icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: AppColors.slate900),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ),
+                  const WedifyBackButton(),
                   const SizedBox(width: 12),
 
                   // Top Middle Search Field for OpenStreetMap Address & Region
@@ -288,10 +291,18 @@ class _VirtualMapExplorerScreenState extends State<VirtualMapExplorerScreen> {
                             _mapController.move(_regionCoordinates[val]!, 12.0);
                           }
                         },
+                        style: const TextStyle(
+                          color: AppColors.slate900,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        cursorColor: AppColors.slate900,
                         decoration: InputDecoration(
                           hintText: "Search OpenStreetMap address (e.g. Penang)...",
-                          hintStyle: const TextStyle(fontSize: 12, color: AppColors.slate400),
-                          prefixIcon: const Icon(Icons.search_rounded, color: AppColors.slate900, size: 20),
+                          hintStyle: const TextStyle(fontSize: 12, color: AppColors.slate400, fontWeight: FontWeight.normal),
+                          prefixIcon: const Icon(Icons.search_rounded, color: AppColors.slate500, size: 20),
+                          fillColor: Colors.white,
+                          filled: true,
                           suffixIcon: _addressSearchController.text.isNotEmpty
                               ? IconButton(
                                   icon: const Icon(Icons.clear_rounded, size: 18, color: AppColors.slate500),
@@ -479,10 +490,25 @@ class _VirtualMapExplorerScreenState extends State<VirtualMapExplorerScreen> {
                         ),
                       ),
                       TextButton(
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text("Location saved for venue search!")),
-                          );
+                        onPressed: () async {
+                          try {
+                            await ref
+                                .read(weddingProjectProvider.notifier)
+                                .bookVenue(
+                                  venueName: _customLocationName.isNotEmpty
+                                      ? _customLocationName
+                                      : 'Custom Map Location',
+                                  venueAddress: _customLocationName,
+                                  fee: 0.0,
+                                );
+                            if (!context.mounted) return;
+                            context.showTopRightSuccess(
+                              'Custom location "$_customLocationName" saved as venue!',
+                            );
+                          } catch (e) {
+                            if (!context.mounted) return;
+                            context.showTopRightError('Unable to save location: $e');
+                          }
                         },
                         child: const Text("Select", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                       ),

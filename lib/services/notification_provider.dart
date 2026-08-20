@@ -177,6 +177,34 @@ class NotificationNotifier extends StateNotifier<List<NotificationModel>> {
     await batch.commit();
   }
 
+  Future<void> deleteNotification(String id) async {
+    if (_userId == 'default_user') return;
+    await _collection.doc(id).delete();
+  }
+
+  Future<void> clearAllNotifications() async {
+    if (_userId == 'default_user') return;
+    final snapshot = await _collection.get();
+    final batch = _firestore.batch();
+    for (final doc in snapshot.docs) {
+      batch.delete(doc.reference);
+    }
+    await batch.commit();
+    state = [];
+  }
+
+  Future<void> addCancellationNotification() async {
+    if (_userId == 'default_user') return;
+    final notification = NotificationModel(
+      id: 'cancellation_${DateTime.now().millisecondsSinceEpoch}',
+      title: 'Project Canceled ❌',
+      body: 'Your wedding project and all associated bookings have been canceled and reset.',
+      createdAt: DateTime.now(),
+      targetRoute: notificationRouteDashboard,
+    );
+    await _collection.doc(notification.id).set(notification.toMap());
+  }
+
   @override
   void dispose() {
     _subscription?.cancel();

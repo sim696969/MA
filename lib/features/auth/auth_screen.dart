@@ -260,19 +260,14 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => FocusScope.of(context).unfocus(),
-      behavior: HitTestBehavior.translucent,
-      child: Scaffold(
-        backgroundColor: AppColors.backgroundLight,
-        body: SafeArea(
-          child: SelectionArea(
-            selectionControls: null,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
+    return Scaffold(
+      backgroundColor: AppColors.backgroundLight,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
               const SizedBox(height: 20),
               // Brand Logo Header
               Center(
@@ -552,7 +547,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   ],
                 ),
               ),
-              if (_isRegistering) ...[
               const SizedBox(height: 24),
               FadeInUp(
                 duration: const Duration(milliseconds: 1200),
@@ -583,14 +577,14 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
                       backgroundColor: Colors.white,
                     ),
-                    child: const Row(
+                    child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.g_mobiledata, size: 30, color: AppColors.slate900),
-                        SizedBox(width: 8),
+                        const Icon(Icons.g_mobiledata, size: 30, color: AppColors.slate900),
+                        const SizedBox(width: 8),
                         Text(
-                          "Sign up with Google",
-                          style: TextStyle(
+                          _isRegistering ? "Sign up with Google" : "Sign in with Google",
+                          style: const TextStyle(
                             color: AppColors.slate900,
                             fontWeight: FontWeight.w600,
                             fontSize: 15,
@@ -602,12 +596,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              ],
             ],
           ),
         ),
-      ),
-      ),
       ),
     );
   }

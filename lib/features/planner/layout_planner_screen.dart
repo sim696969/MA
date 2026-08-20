@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../services/database_service.dart';
 import '../../services/wedding_project_provider.dart';
 import '../../widgets/top_right_toast.dart';
+import '../../widgets/wedify_back_button.dart';
 
 // ─────────────────────────────────────────────
 //  Models
@@ -540,13 +541,14 @@ class _LayoutPlannerScreenState extends ConsumerState<LayoutPlannerScreen>
       backgroundColor: Colors.white,
       surfaceTintColor: Colors.white,
       titleSpacing: 0,
-      leading: IconButton(
-        icon: const Icon(
-          Icons.arrow_back_ios_new_rounded,
-          color: Color(0xFF1A1A2E),
-          size: 20,
+      leadingWidth: 64,
+      leading: Padding(
+        padding: const EdgeInsets.only(left: 12),
+        child: Center(
+          child: WedifyBackButton(
+            onPressed: _handleBackNavigation,
+          ),
         ),
-        onPressed: _handleBackNavigation,
       ),
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

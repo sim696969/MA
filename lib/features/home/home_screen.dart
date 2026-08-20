@@ -14,6 +14,8 @@ import '../invitation/invitation_gallery_screen.dart';
 import '../catering/catering_selector_screen.dart';
 import '../checkout/checkout_screen.dart';
 import '../../services/auth_session_service.dart';
+import '../notifications/notification_center_screen.dart';
+import '../../services/notification_provider.dart';
 import '../../widgets/top_right_toast.dart';
 import '../../widgets/app_bottom_nav_bar.dart';
 
@@ -49,6 +51,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // 3. Deep full reset: deletes Firestore subcollections (guests, catering orders,
     //    layouts, invitations), wipes SharedPreferences, resets Riverpod project state.
     await ref.read(weddingProjectProvider.notifier).fullResetAllBookingData();
+
+    // 4. Create a cancellation notification for the user
+    await ref.read(notificationProvider.notifier).addCancellationNotification();
   }
 
   Future<void> _handleLogout(BuildContext context) async {
@@ -228,6 +233,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         return StatefulBuilder(
           builder: (context, setModalState) {
             return AlertDialog(
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.transparent,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
               ),
@@ -558,6 +565,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
@@ -647,6 +656,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final project = ref.watch(weddingProjectProvider);
+    final unreadCount = ref.watch(unreadNotificationCountProvider);
 
     return Scaffold(
       backgroundColor: AppColors.backgroundLight,
@@ -656,26 +666,67 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. Top Header Row: Menu and logout
+              // 1. Top Header Row: Notification (Top Left) & Logout (Top Right)
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: AppColors.slate100,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: IconButton(
-                      icon: const Icon(
-                        Icons.grid_view_rounded,
-                        color: AppColors.slate900,
-                        size: 20,
+                  // Notification Bell Button with live Unread Badge (Top Left)
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: AppColors.slate100,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: IconButton(
+                          tooltip: 'Notifications',
+                          icon: const Icon(
+                            Icons.notifications_none_rounded,
+                            color: AppColors.slate900,
+                            size: 22,
+                          ),
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const NotificationCenterScreen(),
+                              ),
+                            );
+                          },
+                        ),
                       ),
-                      onPressed: () {},
-                    ),
+                      if (unreadCount > 0)
+                        Positioned(
+                          top: -4,
+                          right: -4,
+                          child: Container(
+                            constraints: const BoxConstraints(
+                              minWidth: 18,
+                              minHeight: 18,
+                            ),
+                            padding: const EdgeInsets.all(3),
+                            decoration: const BoxDecoration(
+                              color: AppColors.pinkPrimary,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Center(
+                              child: Text(
+                                unreadCount > 99 ? '99+' : '$unreadCount',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
+                  // Logout Button (Top Right)
                   Container(
                     width: 44,
                     height: 44,

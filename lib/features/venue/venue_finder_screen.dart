@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 import '../../core/theme/app_colors.dart';
 import '../../services/wedding_project_provider.dart';
 import '../../widgets/top_right_toast.dart';
+import '../../widgets/wedify_back_button.dart';
 import 'virtual_map_explorer_screen.dart';
 
 class VenueFinderScreen extends ConsumerStatefulWidget {
@@ -253,23 +254,7 @@ class _VenueFinderScreenState extends ConsumerState<VenueFinderScreen> {
               ),
               child: Row(
                 children: [
-                  // Back Arrow Navigation Button to return to dashboard
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: AppColors.slate100,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: IconButton(
-                      icon: const Icon(
-                        Icons.arrow_back_ios_new_rounded,
-                        size: 18,
-                        color: AppColors.slate900,
-                      ),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ),
+                  const WedifyBackButton(),
                   const SizedBox(width: 16),
                   const Text(
                     "Venue Finder",
@@ -1281,6 +1266,7 @@ class _VenueFinderScreenState extends ConsumerState<VenueFinderScreen> {
                                 : 'Venue ${venue.name} successfully booked!',
                           );
                         }
+                        if (!context.mounted) return;
                         Navigator.pop(context, {
                           'venueName': venue.name,
                           'fee': fee,

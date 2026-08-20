@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import '../../models/wedding_project_model.dart';
 import '../../services/wedding_project_provider.dart';
 import '../../services/notification_provider.dart';
+import '../../widgets/wedify_back_button.dart';
 
 // NOTE: In a production app the secret key must never live in client code.
 // For this sandbox/test assignment it is embedded directly.
@@ -464,13 +465,14 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: Colors.black,
-            size: 20,
+        leadingWidth: 64,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 12),
+          child: Center(
+            child: WedifyBackButton(
+              onPressed: _handleBackNavigation,
+            ),
           ),
-          onPressed: _handleBackNavigation,
         ),
         title: Text(
           isPaid ? 'Booking Confirmation' : 'Wedding Project Checkout',

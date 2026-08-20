@@ -8,6 +8,7 @@ import '../../models/guest_invitation_model.dart';
 import '../../services/database_service.dart';
 import '../../services/wedding_project_provider.dart';
 import '../../widgets/top_right_toast.dart';
+import '../../widgets/wedify_back_button.dart';
 
 class InvitationTemplateOption {
   final String id;
@@ -651,13 +652,16 @@ class _InvitationGalleryScreenState
           preferredSize: const Size.fromHeight(1.5),
           child: Container(color: AppColors.blush, height: 1.5),
         ),
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new,
-            color: Colors.white,
-            size: 20,
+        leadingWidth: 64,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 12),
+          child: Center(
+            child: WedifyBackButton(
+              backgroundColor: Colors.white.withValues(alpha: 0.15),
+              iconColor: Colors.white,
+              onPressed: () => Navigator.of(context).pop(),
+            ),
           ),
-          onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
           "INVITATIONS & GUESTS",

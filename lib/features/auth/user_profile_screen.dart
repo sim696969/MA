@@ -5,10 +5,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/theme/app_colors.dart';
 import '../../services/auth_session_service.dart';
 import '../../services/database_service.dart';
-import '../../services/notification_provider.dart';
 import '../../widgets/app_bottom_nav_bar.dart';
+import '../../widgets/wedify_back_button.dart';
 import '../auth/auth_screen.dart';
-import '../notifications/notification_center_screen.dart';
 
 class UserProfileScreen extends ConsumerStatefulWidget {
   const UserProfileScreen({super.key});
@@ -138,18 +137,11 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 8.0),
-          child: Container(
-            margin: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: AppColors.slate100,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.slate900, size: 18),
-              onPressed: () => Navigator.pop(context),
-            ),
+        leadingWidth: 64,
+        leading: const Padding(
+          padding: EdgeInsets.only(left: 12),
+          child: Center(
+            child: WedifyBackButton(),
           ),
         ),
         title: const Text(
@@ -158,48 +150,6 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
         ),
         centerTitle: true,
         actions: [
-          Consumer(
-            builder: (context, ref, _) {
-              final unreadCount = ref.watch(unreadNotificationCountProvider);
-              return IconButton(
-                tooltip: 'Notifications',
-                icon: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    const Icon(Icons.notifications_none_rounded, color: AppColors.slate900, size: 24),
-                    if (unreadCount > 0)
-                      Positioned(
-                        right: -4,
-                        top: -4,
-                        child: Container(
-                          constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                          alignment: Alignment.center,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFE57373),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Text(
-                            unreadCount > 99 ? '99+' : '$unreadCount',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const NotificationCenterScreen()),
-                  );
-                },
-              );
-            },
-          ),
           IconButton(
             tooltip: 'Logout',
             icon: const Icon(Icons.logout_rounded, color: AppColors.pinkPrimary),

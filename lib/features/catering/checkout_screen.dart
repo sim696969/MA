@@ -7,6 +7,7 @@ import '../../services/catering_cart_provider.dart';
 import '../../services/database_service.dart';
 import '../../services/wedding_project_provider.dart';
 import '../../widgets/top_right_toast.dart';
+import '../../widgets/wedify_back_button.dart';
 
 class CateringCheckoutScreen extends ConsumerStatefulWidget {
   const CateringCheckoutScreen({super.key});
@@ -262,13 +263,14 @@ class _CateringCheckoutScreenState
           preferredSize: const Size.fromHeight(1.5),
           child: Container(color: Colors.black, height: 1.5),
         ),
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new,
-            color: Colors.black,
-            size: 20,
+        leadingWidth: 64,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 12),
+          child: Center(
+            child: WedifyBackButton(
+              onPressed: () => Navigator.of(context).pop(),
+            ),
           ),
-          onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
           "CATERING CHECKOUT",

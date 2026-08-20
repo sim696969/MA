@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme/app_colors.dart';
-import '../services/notification_provider.dart';
 import '../features/home/home_screen.dart';
-import '../features/notifications/notification_center_screen.dart';
+import '../features/features_hub/features_hub_screen.dart';
 import '../features/auth/user_profile_screen.dart';
 
 class WedifyBottomNavigationBar extends ConsumerWidget {
@@ -16,8 +15,6 @@ class WedifyBottomNavigationBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final unreadCount = ref.watch(unreadNotificationCountProvider);
-
     return Container(
       height: 72,
       decoration: const BoxDecoration(
@@ -37,9 +34,9 @@ class WedifyBottomNavigationBar extends ConsumerWidget {
           _buildNavItem(
             context: context,
             index: 1,
-            icon: Icons.notifications_none_rounded,
-            activeIcon: Icons.notifications_rounded,
-            unreadCount: unreadCount,
+            icon: Icons.grid_view_outlined,
+            activeIcon: Icons.grid_view_rounded,
+            showDot: true,
           ),
           _buildNavItem(
             context: context,
@@ -79,14 +76,14 @@ class WedifyBottomNavigationBar extends ConsumerWidget {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => const NotificationCenterScreen(),
+                builder: (_) => const FeaturesHubScreen(),
               ),
             );
           } else {
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
-                builder: (_) => const NotificationCenterScreen(),
+                builder: (_) => const FeaturesHubScreen(),
               ),
             );
           }
