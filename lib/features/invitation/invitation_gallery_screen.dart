@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/guest_invitation_model.dart';
+import '../../services/auth_session_service.dart';
 import '../../services/database_service.dart';
 import '../../services/wedding_project_provider.dart';
 import '../../widgets/top_right_toast.dart';
@@ -42,6 +43,7 @@ class _InvitationGalleryScreenState
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
+  final TextEditingController _wedifyUserSearchController = TextEditingController();
   final TextEditingController _customMessageController = TextEditingController(
     text: "We request the pleasure of your company to celebrate our wedding.",
   );
@@ -53,6 +55,14 @@ class _InvitationGalleryScreenState
   final TextEditingController _hostNamesController = TextEditingController(
     text: "Sarah & John",
   );
+
+  // Wedify User Link State
+  String? _selectedWedifyUserId;
+  String? _selectedWedifyUserEmail;
+  String? _selectedWedifyUserName;
+  List<Map<String, dynamic>> _userSearchResults = [];
+  bool _isSearchingUsers = false;
+  Timer? _searchDebounce;
 
   // Local state
   final List<GuestInvitationModel> _localGuests = [];
@@ -123,6 +133,12 @@ class _InvitationGalleryScreenState
   void _resetAllLocalInputsToEmpty() {
     _nameController.clear();
     _addressController.clear();
+    _wedifyUserSearchController.clear();
+    _selectedWedifyUserId = null;
+    _selectedWedifyUserEmail = null;
+    _selectedWedifyUserName = null;
+    _userSearchResults = [];
+    _isSearchingUsers = false;
     _selectedTemplate = _templates.first;
     _isTemplateSectionExpanded = false;
     _isCustomizingDetails = false;
@@ -150,6 +166,63 @@ class _InvitationGalleryScreenState
         project.selectedVenueName!.isNotEmpty) {
       _venueAddressController.text = project.selectedVenueName!;
     }
+  }
+
+  void _onWedifySearchChanged(String query) {
+    _searchDebounce?.cancel();
+    if (query.trim().isEmpty) {
+      setState(() {
+        _userSearchResults = [];
+        _isSearchingUsers = false;
+      });
+      return;
+    }
+
+    final currentUserId = ref.read(weddingProjectProvider.notifier).firestoreProjectDocId;
+    final currentUserEmail = ref.read(authStateProvider).email;
+
+    setState(() => _isSearchingUsers = true);
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () async {
+      final results = await _dbService.searchWedifyUsers(
+        query,
+        excludeUserId: currentUserId,
+        excludeUserEmail: currentUserEmail,
+      );
+      if (mounted) {
+        setState(() {
+          _userSearchResults = results;
+          _isSearchingUsers = false;
+        });
+      }
+    });
+  }
+
+  void _selectWedifyUser(Map<String, dynamic> user) {
+    setState(() {
+      _selectedWedifyUserId = user['userId'];
+      _selectedWedifyUserEmail = user['email'];
+      _selectedWedifyUserName = user['name'];
+      _wedifyUserSearchController.text = user['userId'] ?? '';
+      _userSearchResults = [];
+
+      // Auto-fill guest name and email if empty
+      if (_nameController.text.trim().isEmpty && user['name'] != null) {
+        _nameController.text = user['name'];
+      }
+      if (_addressController.text.trim().isEmpty && (user['email'] != null && user['email'].toString().isNotEmpty)) {
+        _addressController.text = user['email'];
+      }
+    });
+  }
+
+  void _clearSelectedWedifyUser() {
+    setState(() {
+      _selectedWedifyUserId = null;
+      _selectedWedifyUserEmail = null;
+      _selectedWedifyUserName = null;
+      _wedifyUserSearchController.clear();
+      _userSearchResults = [];
+    });
   }
 
   void _subscribeToFirestoreGuests() {
@@ -188,9 +261,11 @@ class _InvitationGalleryScreenState
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _guestSubscription?.cancel();
     _nameController.dispose();
     _addressController.dispose();
+    _wedifyUserSearchController.dispose();
     _customMessageController.dispose();
     _weddingDateTimeController.dispose();
     _venueAddressController.dispose();
@@ -208,6 +283,11 @@ class _InvitationGalleryScreenState
         .firestoreProjectDocId;
     final newId = 'guest_${DateTime.now().millisecondsSinceEpoch}';
 
+    final customWedifyId = _selectedWedifyUserId ??
+        (_wedifyUserSearchController.text.trim().isNotEmpty
+            ? _wedifyUserSearchController.text.trim()
+            : null);
+
     final newGuest = GuestInvitationModel(
       id: newId,
       guestName: _nameController.text.trim(),
@@ -222,6 +302,8 @@ class _InvitationGalleryScreenState
       },
       status: 'draft',
       createdAt: DateTime.now(),
+      wedifyUserId: customWedifyId,
+      wedifyUserEmail: _selectedWedifyUserEmail,
     );
 
     try {
@@ -235,13 +317,14 @@ class _InvitationGalleryScreenState
           .read(weddingProjectProvider.notifier)
           .updateInvitation(
             invitationName: _selectedTemplate.name,
-            fee: 150.0,
+            fee: 0.0,
             isCompleted: true,
           );
 
       if (mounted) {
         _nameController.clear();
         _addressController.clear();
+        _clearSelectedWedifyUser();
         setState(() {
           // If Firestore stream didn't update immediately, add locally
           if (!_localGuests.any((g) => g.id == newGuest.id)) {
@@ -337,9 +420,11 @@ class _InvitationGalleryScreenState
         .firestoreProjectDocId;
 
     try {
+      final host = _hostNamesController.text.trim();
       final updatedCount = await _dbService.sendAllInvitationsBatch(
         projectId: projectId,
         guests: _localGuests,
+        senderHostNames: host.isNotEmpty ? host : 'Your Friend',
       );
 
       // Local optimistic update
@@ -1069,6 +1154,10 @@ class _InvitationGalleryScreenState
             ),
             const SizedBox(height: 16),
 
+            // Input: Wedify User ID (Optional with Search/Suggestions)
+            _buildWedifyUserSearchField(),
+            const SizedBox(height: 14),
+
             // Input: Guest Name
             _buildMonochromeTextField(
               controller: _nameController,
@@ -1148,6 +1237,247 @@ class _InvitationGalleryScreenState
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildWedifyUserSearchField() {
+    final hasSelectedUser = _selectedWedifyUserId != null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              "WEDIFY USER ID / IN-APP INVITE",
+              style: GoogleFonts.inter(
+                color: AppColors.navy,
+                fontWeight: FontWeight.w800,
+                fontSize: 11,
+                letterSpacing: 0.8,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppColors.blush.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                "OPTIONAL",
+                style: GoogleFonts.inter(
+                  color: AppColors.navy,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 9,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        if (hasSelectedUser)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.warmCream,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.blush, width: 1.5),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: const BoxDecoration(
+                    color: AppColors.blush,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.notifications_active_rounded,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _selectedWedifyUserName ?? "Wedify User",
+                        style: GoogleFonts.inter(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                          color: AppColors.navy,
+                        ),
+                      ),
+                      Text(
+                        "ID: $_selectedWedifyUserId${_selectedWedifyUserEmail != null ? ' • ${_selectedWedifyUserEmail!}' : ''}",
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          color: Colors.black54,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, size: 18, color: Colors.black54),
+                  tooltip: "Remove linked user",
+                  onPressed: _clearSelectedWedifyUser,
+                ),
+              ],
+            ),
+          )
+        else
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextFormField(
+                controller: _wedifyUserSearchController,
+                style: GoogleFonts.inter(
+                  color: AppColors.navy,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+                onChanged: _onWedifySearchChanged,
+                decoration: InputDecoration(
+                  hintText: "Type user ID, name, or email...",
+                  hintStyle: GoogleFonts.inter(color: Colors.grey[500], fontSize: 13),
+                  prefixIcon: const Icon(
+                    Icons.person_search_rounded,
+                    color: AppColors.blush,
+                    size: 20,
+                  ),
+                  suffixIcon: _isSearchingUsers
+                      ? const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                AppColors.blush,
+                              ),
+                            ),
+                          ),
+                        )
+                      : (_wedifyUserSearchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 18),
+                              onPressed: () {
+                                _wedifyUserSearchController.clear();
+                                _onWedifySearchChanged('');
+                              },
+                            )
+                          : null),
+                  filled: true,
+                  fillColor: AppColors.warmCream,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(color: AppColors.pinkBorder),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(color: AppColors.pinkBorder),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(color: AppColors.blush, width: 2),
+                  ),
+                ),
+              ),
+
+              // Suggestions Dropdown List
+              if (_userSearchResults.isNotEmpty)
+                Container(
+                  margin: const EdgeInsets.only(top: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.pinkBorder, width: 1.5),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.08),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  constraints: const BoxConstraints(maxHeight: 190),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    itemCount: _userSearchResults.length,
+                    separatorBuilder: (_, __) => const Divider(
+                      height: 1,
+                      color: AppColors.pinkBorder,
+                    ),
+                    itemBuilder: (context, idx) {
+                      final u = _userSearchResults[idx];
+                      return ListTile(
+                        dense: true,
+                        leading: CircleAvatar(
+                          radius: 14,
+                          backgroundColor: AppColors.navy,
+                          child: Text(
+                            (u['name'] as String).isNotEmpty
+                                ? (u['name'] as String)[0].toUpperCase()
+                                : 'U',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        title: Text(
+                          u['name'] ?? '',
+                          style: GoogleFonts.inter(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                            color: AppColors.navy,
+                          ),
+                        ),
+                        subtitle: Text(
+                          "ID: ${u['userId']} • ${u['email'] ?? ''}",
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            color: Colors.black54,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        trailing: const Icon(
+                          Icons.add_circle_outline_rounded,
+                          color: AppColors.blush,
+                          size: 20,
+                        ),
+                        onTap: () => _selectWedifyUser(u),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        const SizedBox(height: 4),
+        Text(
+          "Connecting a Wedify user sends them an in-app wedding invitation alert on their notification center.",
+          style: GoogleFonts.inter(
+            color: Colors.black45,
+            fontSize: 11,
+            height: 1.3,
+          ),
+        ),
+      ],
     );
   }
 
@@ -1613,24 +1943,61 @@ class _InvitationGalleryScreenState
                   ),
                 ),
                 const SizedBox(height: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFAFAFA),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: Colors.black38, width: 1),
-                  ),
-                  child: Text(
-                    "Template: ${guest.templateName}",
-                    style: GoogleFonts.inter(
-                      color: Colors.black87,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFAFAFA),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: Colors.black38, width: 1),
+                      ),
+                      child: Text(
+                        "Template: ${guest.templateName}",
+                        style: GoogleFonts.inter(
+                          color: Colors.black87,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
-                  ),
+                    if (guest.wedifyUserId != null && guest.wedifyUserId!.isNotEmpty) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.blush.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: AppColors.blush, width: 1),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.notifications_active_rounded,
+                              size: 11,
+                              color: AppColors.blush,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              "In-App Invite",
+                              style: GoogleFonts.inter(
+                                color: AppColors.navy,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),

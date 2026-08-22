@@ -274,7 +274,7 @@ class WeddingProjectNotifier extends StateNotifier<WeddingProject> {
 
   Future<PaymentModificationResult> updateInvitation({
     required String invitationName,
-    required double fee,
+    double fee = 0.0,
     bool isCompleted = true,
   }) async {
     final previousState = state;

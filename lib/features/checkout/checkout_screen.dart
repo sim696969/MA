@@ -443,12 +443,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
     final venueFee = project.venueFee > 0 ? project.venueFee : 4500.00;
     final plannerFee = project.plannerFee > 0 ? project.plannerFee : 800.00;
-    final invitationFee = project.invitationOptedOut
-        ? 0.00
-        : (project.invitationFee > 0 ? project.invitationFee : 650.00);
     final cateringFee = project.cateringFee > 0 ? project.cateringFee : 5500.00;
 
-    final subtotal = venueFee + plannerFee + invitationFee + cateringFee;
+    final subtotal = venueFee + plannerFee + cateringFee;
     final serviceTax = subtotal * 0.06;
     final grandTotal = subtotal + serviceTax;
     final isBalancePayment = project.amountPaid > 0 && project.balanceDue > 0;
@@ -609,20 +606,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                     ),
                     const Divider(height: 24, color: Colors.black12),
                     _buildServiceRow(
-                      icon: project.invitationOptedOut
-                          ? Icons.how_to_reg_rounded
-                          : Icons.mark_email_unread_rounded,
-                      title: '3. Invitation Cards',
-                      subtitle: project.invitationOptedOut
-                          ? 'Physical Invitations (Self-Managed)'
-                          : (project.selectedInvitationName ??
-                                'Luxury Rose Gold Suite (200 pcs)'),
-                      price: fmt.format(invitationFee),
-                    ),
-                    const Divider(height: 24, color: Colors.black12),
-                    _buildServiceRow(
                       icon: Icons.cake_rounded,
-                      title: '4. F&B Catering Package',
+                      title: '3. F&B Catering Package',
                       subtitle:
                           project.selectedCateringPackage ??
                           'Royal Wedding Buffet Menu',
@@ -1024,13 +1009,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           _buildReceiptRow(
             '2D Layout',
             project.plannerLayoutSummary ?? 'Custom Seating & Stage Layout',
-          ),
-          const SizedBox(height: 6),
-          _buildReceiptRow(
-            'Invitations',
-            project.invitationOptedOut
-                ? 'Physical Invitations (Self-Managed - RM 0)'
-                : (project.selectedInvitationName ?? 'Digital & Printed Suite'),
           ),
           const SizedBox(height: 6),
           _buildReceiptRow(

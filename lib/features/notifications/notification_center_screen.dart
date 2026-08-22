@@ -124,6 +124,69 @@ class _NotificationCenterScreenState
     await ref.read(notificationProvider.notifier).markRead(notification.id);
     if (!mounted) return;
 
+    // Invitation notifications: show invitation dialog popup
+    if (notification.id.startsWith('invitation_')) {
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: AppColors.blush, width: 1.5),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: const BoxDecoration(
+                  color: AppColors.pinkLight,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.mark_email_unread_rounded,
+                  color: AppColors.pinkPrimary,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  notification.title,
+                  style: const TextStyle(
+                    color: AppColors.navy,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            notification.body,
+            style: const TextStyle(
+              color: AppColors.slate700,
+              fontSize: 14,
+              height: 1.5,
+            ),
+          ),
+          actions: [
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.blush,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Viewed & Accepted'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     // Cancellation notifications: show detail popup, remain as read (no auto-delete)
     if (notification.id.startsWith('cancellation_')) {
       await showDialog<void>(

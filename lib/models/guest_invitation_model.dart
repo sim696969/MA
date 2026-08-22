@@ -10,6 +10,8 @@ class GuestInvitationModel {
   final Map<String, dynamic> customTemplateData;
   final String status; // 'draft', 'sent'
   final DateTime createdAt;
+  final String? wedifyUserId;
+  final String? wedifyUserEmail;
 
   const GuestInvitationModel({
     required this.id,
@@ -20,6 +22,8 @@ class GuestInvitationModel {
     this.customTemplateData = const {},
     this.status = 'draft',
     required this.createdAt,
+    this.wedifyUserId,
+    this.wedifyUserEmail,
   });
 
   GuestInvitationModel copyWith({
@@ -31,6 +35,8 @@ class GuestInvitationModel {
     Map<String, dynamic>? customTemplateData,
     String? status,
     DateTime? createdAt,
+    String? wedifyUserId,
+    String? wedifyUserEmail,
   }) {
     return GuestInvitationModel(
       id: id ?? this.id,
@@ -41,6 +47,8 @@ class GuestInvitationModel {
       customTemplateData: customTemplateData ?? this.customTemplateData,
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
+      wedifyUserId: wedifyUserId ?? this.wedifyUserId,
+      wedifyUserEmail: wedifyUserEmail ?? this.wedifyUserEmail,
     );
   }
 
@@ -54,6 +62,8 @@ class GuestInvitationModel {
       'customTemplateData': customTemplateData,
       'status': status,
       'createdAt': Timestamp.fromDate(createdAt),
+      'wedifyUserId': wedifyUserId,
+      'wedifyUserEmail': wedifyUserEmail,
     };
   }
 
@@ -79,6 +89,8 @@ class GuestInvitationModel {
           : {},
       status: map['status'] ?? 'draft',
       createdAt: parsedDate,
+      wedifyUserId: map['wedifyUserId'] as String?,
+      wedifyUserEmail: map['wedifyUserEmail'] as String?,
     );
   }
 }

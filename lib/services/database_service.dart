@@ -244,10 +244,11 @@ class DatabaseService {
     });
   }
 
-  /// Batch update all draft guests to 'sent' status.
+  /// Batch update all draft guests to 'sent' status and notify Wedify users.
   Future<int> sendAllInvitationsBatch({
     required String projectId,
     required List<GuestInvitationModel> guests,
+    String? senderHostNames,
   }) async {
     final path = _guestsCollectionPath(projectId);
     final WriteBatch batch = _db.batch();
@@ -267,12 +268,99 @@ class DatabaseService {
         SetOptions(merge: true),
       );
       count++;
+
+      // If this guest is linked to a Wedify user ID, deliver in-app notification to them
+      if (guest.wedifyUserId != null && guest.wedifyUserId!.isNotEmpty) {
+        final host = guest.customTemplateData['hostNames'] ?? senderHostNames ?? 'Your Friend';
+        final weddingDate = guest.customTemplateData['weddingDateTime'] ?? 'Upcoming Wedding';
+        final venue = guest.customTemplateData['venueAddress'] ?? '';
+
+        final notifId = 'invitation_${projectId}_${guest.id}';
+        final notifRef = _db
+            .collection('user_wedding_projects')
+            .doc(guest.wedifyUserId)
+            .collection('notifications')
+            .doc(notifId);
+
+        batch.set(
+          notifRef,
+          {
+            'title': 'Wedding Invitation from $host! 💌',
+            'body': 'You have been cordially invited to celebrate the wedding on $weddingDate${venue.isNotEmpty ? ' at $venue' : ''}. Template: ${guest.templateName}.',
+            'createdAt': FieldValue.serverTimestamp(),
+            'isRead': false,
+            'isExpired': false,
+            'targetRoute': 'dashboard',
+            'senderProjectId': projectId,
+            'guestName': guest.guestName,
+            'templateName': guest.templateName,
+          },
+          SetOptions(merge: true),
+        );
+      }
     }
 
     if (count > 0) {
       await batch.commit();
     }
     return count;
+  }
+
+  /// Search Wedify users from 'users' collection by name, email, or user ID.
+  Future<List<Map<String, dynamic>>> searchWedifyUsers(
+    String query, {
+    String? excludeUserId,
+    String? excludeUserEmail,
+  }) async {
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) return [];
+
+    final normalizedExcludeId = excludeUserId?.trim().toLowerCase();
+    final normalizedExcludeEmail = excludeUserEmail?.trim().toLowerCase();
+
+    try {
+      final snapshot = await _db.collection('users').limit(50).get();
+      final List<Map<String, dynamic>> results = [];
+
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+        final docId = doc.id;
+        final name = (data['name'] ?? '').toString();
+        final email = (data['email'] ?? '').toString();
+        final phone = (data['phone'] ?? '').toString();
+
+        // Skip current user's own account by document ID or email
+        if (normalizedExcludeId != null &&
+            (docId.toLowerCase() == normalizedExcludeId ||
+                docId.toLowerCase() == normalizedExcludeId.replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '_'))) {
+          continue;
+        }
+        if (normalizedExcludeEmail != null &&
+            normalizedExcludeEmail.isNotEmpty &&
+            email.toLowerCase() == normalizedExcludeEmail) {
+          continue;
+        }
+
+        final matchId = docId.toLowerCase().contains(q);
+        final matchName = name.toLowerCase().contains(q);
+        final matchEmail = email.toLowerCase().contains(q);
+        final matchPhone = phone.toLowerCase().contains(q);
+
+        if (matchId || matchName || matchEmail || matchPhone) {
+          results.add({
+            'userId': docId,
+            'name': name.isNotEmpty ? name : 'Wedify User',
+            'email': email,
+            'phone': phone,
+            'photoUrl': data['photoUrl'],
+          });
+        }
+      }
+
+      return results;
+    } catch (_) {
+      return [];
+    }
   }
 
   /// Save or update a generic invitation.

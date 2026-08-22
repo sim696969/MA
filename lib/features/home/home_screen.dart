@@ -691,7 +691,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             .updateInvitation(
               invitationName:
                   result['invitationName'] as String? ?? "Selected Invitation",
-              fee: (result['fee'] as num?)?.toDouble() ?? 650.0,
+              fee: (result['fee'] as num?)?.toDouble() ?? 0.0,
             );
       }
     }
@@ -794,7 +794,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             .updateInvitation(
               invitationName:
                   result['invitationName'] as String? ?? "Selected Invitation",
-              fee: (result['fee'] as num?)?.toDouble() ?? 650.0,
+              fee: (result['fee'] as num?)?.toDouble() ?? 0.0,
             );
       } else if (featureTitle == "F&B Catering" &&
           result is Map<String, dynamic>) {
