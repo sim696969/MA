@@ -243,7 +243,6 @@ class WeddingProjectNotifier extends StateNotifier<WeddingProject> {
     await _saveToLocalPreferences();
 
     final projectId = _currentUserId;
-    print('Attempting to book venue with Project ID: $projectId');
     if (projectId == 'default_user') {
       state = previousState;
       await _saveToLocalPreferences();
@@ -252,11 +251,9 @@ class WeddingProjectNotifier extends StateNotifier<WeddingProject> {
 
     try {
       return await _saveServiceUpdate(previousState);
-    } catch (e, stackTrace) {
+    } catch (e) {
       state = previousState;
       await _saveToLocalPreferences();
-      print('Failed to book venue for Project ID $projectId: $e');
-      print(stackTrace);
       rethrow;
     }
   }
@@ -285,6 +282,27 @@ class WeddingProjectNotifier extends StateNotifier<WeddingProject> {
       selectedInvitationName: invitationName,
       invitationFee: fee,
       isInvitationCompleted: isCompleted,
+      invitationOptedOut: false,
+    );
+    return _saveServiceUpdate(previousState);
+  }
+
+  Future<PaymentModificationResult> optOutOfInvitation() async {
+    final previousState = state;
+    state = state.copyWith(
+      invitationOptedOut: true,
+      isInvitationCompleted: false,
+      invitationFee: 0.0,
+      selectedInvitationName: "Physical Invitations (Self-Managed)",
+    );
+    return _saveServiceUpdate(previousState);
+  }
+
+  Future<PaymentModificationResult> undoInvitationOptOut() async {
+    final previousState = state;
+    state = state.copyWith(
+      invitationOptedOut: false,
+      selectedInvitationName: null,
     );
     return _saveServiceUpdate(previousState);
   }

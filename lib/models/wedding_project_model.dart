@@ -17,6 +17,7 @@ class WeddingProject {
   final String? selectedInvitationName;
   final double invitationFee;
   final bool isInvitationCompleted;
+  final bool invitationOptedOut;
 
   final String? selectedCateringPackage;
   final double cateringFee;
@@ -44,6 +45,7 @@ class WeddingProject {
     this.selectedInvitationName,
     this.invitationFee = 0.0,
     this.isInvitationCompleted = false,
+    this.invitationOptedOut = false,
     this.selectedCateringPackage,
     this.cateringFee = 0.0,
     this.isCateringCompleted = false,
@@ -62,7 +64,7 @@ class WeddingProject {
     int count = 0;
     if (isVenueCompleted) count++;
     if (isPlannerCompleted) count++;
-    if (isInvitationCompleted) count++;
+    if (isInvitationCompleted || invitationOptedOut) count++;
     if (isCateringCompleted) count++;
     return count;
   }
@@ -91,6 +93,7 @@ class WeddingProject {
     String? selectedInvitationName,
     double? invitationFee,
     bool? isInvitationCompleted,
+    bool? invitationOptedOut,
     String? selectedCateringPackage,
     double? cateringFee,
     bool? isCateringCompleted,
@@ -113,10 +116,14 @@ class WeddingProject {
       plannerLayoutSummary: plannerLayoutSummary ?? this.plannerLayoutSummary,
       plannerFee: plannerFee ?? this.plannerFee,
       isPlannerCompleted: isPlannerCompleted ?? this.isPlannerCompleted,
-      selectedInvitationName: selectedInvitationName ?? this.selectedInvitationName,
+      selectedInvitationName:
+          selectedInvitationName ?? this.selectedInvitationName,
       invitationFee: invitationFee ?? this.invitationFee,
-      isInvitationCompleted: isInvitationCompleted ?? this.isInvitationCompleted,
-      selectedCateringPackage: selectedCateringPackage ?? this.selectedCateringPackage,
+      isInvitationCompleted:
+          isInvitationCompleted ?? this.isInvitationCompleted,
+      invitationOptedOut: invitationOptedOut ?? this.invitationOptedOut,
+      selectedCateringPackage:
+          selectedCateringPackage ?? this.selectedCateringPackage,
       cateringFee: cateringFee ?? this.cateringFee,
       isCateringCompleted: isCateringCompleted ?? this.isCateringCompleted,
       paymentStatus: paymentStatus ?? this.paymentStatus,
@@ -144,6 +151,7 @@ class WeddingProject {
       'selectedInvitationName': selectedInvitationName,
       'invitationFee': invitationFee,
       'isInvitationCompleted': isInvitationCompleted,
+      'invitationOptedOut': invitationOptedOut,
       'selectedCateringPackage': selectedCateringPackage,
       'cateringFee': cateringFee,
       'isCateringCompleted': isCateringCompleted,
@@ -165,7 +173,9 @@ class WeddingProject {
 
     return WeddingProject(
       id: map['id'] ?? 'default_project',
-      weddingDate: map['weddingDate'] != null ? DateTime.tryParse(map['weddingDate']) : null,
+      weddingDate: map['weddingDate'] != null
+          ? DateTime.tryParse(map['weddingDate'])
+          : null,
       weddingTime: map['weddingTime'],
       selectedVenueName: map['selectedVenueName'],
       selectedVenueId: map['selectedVenueId'],
@@ -178,6 +188,7 @@ class WeddingProject {
       selectedInvitationName: map['selectedInvitationName'],
       invitationFee: (map['invitationFee'] as num?)?.toDouble() ?? 0.0,
       isInvitationCompleted: map['isInvitationCompleted'] ?? false,
+      invitationOptedOut: map['invitationOptedOut'] ?? false,
       selectedCateringPackage: map['selectedCateringPackage'],
       cateringFee: (map['cateringFee'] as num?)?.toDouble() ?? 0.0,
       isCateringCompleted: map['isCateringCompleted'] ?? false,
@@ -185,12 +196,14 @@ class WeddingProject {
       transactionId: map['transactionId'],
       amountPaid: (map['amountPaid'] as num?)?.toDouble() ?? 0.0,
       paymentDate: parsedPaymentDate,
-      pendingRefundAmount: (map['pendingRefundAmount'] as num?)?.toDouble() ?? 0.0,
+      pendingRefundAmount:
+          (map['pendingRefundAmount'] as num?)?.toDouble() ?? 0.0,
       paymentNotice: map['paymentNotice'] ?? '',
     );
   }
 
   String toJson() => json.encode(toMap());
 
-  factory WeddingProject.fromJson(String source) => WeddingProject.fromMap(json.decode(source));
+  factory WeddingProject.fromJson(String source) =>
+      WeddingProject.fromMap(json.decode(source));
 }

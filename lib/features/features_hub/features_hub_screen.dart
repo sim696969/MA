@@ -5,6 +5,7 @@ import '../../models/wedding_project_model.dart';
 import '../../services/wedding_project_provider.dart';
 import '../../widgets/app_bottom_nav_bar.dart';
 import '../../widgets/wedify_back_button.dart';
+import '../home/home_screen.dart';
 import '../venue/venue_finder_screen.dart';
 import '../planner/layout_planner_screen.dart';
 import '../invitation/invitation_gallery_screen.dart';
@@ -13,6 +14,149 @@ import '../checkout/checkout_screen.dart';
 
 class FeaturesHubScreen extends ConsumerWidget {
   const FeaturesHubScreen({super.key});
+
+  Future<void> _handleInvitationChoice(
+    BuildContext context,
+    WidgetRef ref,
+    Widget screen,
+  ) async {
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: AppColors.pinkBorder, width: 1.5),
+        ),
+        title: Center(
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: const BoxDecoration(
+                  color: AppColors.pinkLight,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.mark_email_unread_rounded,
+                  color: AppColors.pinkPrimary,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                "Invitation Options",
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
+              ),
+            ],
+          ),
+        ),
+        content: const Text(
+          "How would you like to invite your guests?\n\nChoose digital invitations for email/RSVP tracking, or skip if you're using printed cards or word-of-mouth.",
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: AppColors.slate700,
+            fontSize: 13,
+            height: 1.5,
+          ),
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => Navigator.pop(dialogCtx, 'physical'),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: AppColors.sage, width: 1.5),
+                foregroundColor: AppColors.sage,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              icon: const Icon(Icons.how_to_reg_rounded, size: 18),
+              label: const Text(
+                "Use Physical Invitations",
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => Navigator.pop(dialogCtx, 'digital'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.pinkPrimary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                elevation: 0,
+              ),
+              icon: const Icon(Icons.email_rounded, size: 18),
+              label: const Text(
+                "Browse Digital Invitations",
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (!context.mounted) return;
+
+    if (choice == 'physical') {
+      final result = await ref
+          .read(weddingProjectProvider.notifier)
+          .optOutOfInvitation();
+      if (!context.mounted) return;
+      if (result.type == PaymentModificationType.refundDue) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: AppColors.sage,
+            content: Text(
+              'Refund of RM ${result.amount.toStringAsFixed(2)} will be processed.',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: AppColors.sage,
+            content: Text(
+              'Invitation step marked as Physical Invitations (RM 0).',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        );
+      }
+    } else if (choice == 'digital') {
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => screen),
+      );
+      if (result != null && result is Map<String, dynamic> && context.mounted) {
+        ref
+            .read(weddingProjectProvider.notifier)
+            .updateInvitation(
+              invitationName:
+                  result['invitationName'] as String? ?? "Selected Invitation",
+              fee: (result['fee'] as num?)?.toDouble() ?? 650.0,
+            );
+      }
+    }
+  }
 
   void _handleFeatureClick(
     BuildContext context,
@@ -49,6 +193,15 @@ class FeaturesHubScreen extends ConsumerWidget {
             ),
           ),
           actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+              },
+              child: const Text(
+                "Cancel",
+                style: TextStyle(color: AppColors.slate700),
+              ),
+            ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.pinkPrimary,
@@ -58,15 +211,27 @@ class FeaturesHubScreen extends ConsumerWidget {
               ),
               onPressed: () {
                 Navigator.of(ctx).pop();
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const HomeScreen(),
+                  ),
+                  (route) => false,
+                );
               },
               child: const Text(
-                "OK",
+                "Set Time",
                 style: TextStyle(color: Colors.white),
               ),
             ),
           ],
         ),
       );
+      return;
+    }
+
+    if (featureTitle == "Digital Invitations") {
+      _handleInvitationChoice(context, ref, screen);
       return;
     }
 
@@ -78,19 +243,31 @@ class FeaturesHubScreen extends ConsumerWidget {
     if (result != null) {
       if (featureTitle == "Venue Finder" && result is Map<String, dynamic>) {
         // VenueFinder handles booking persistence internally
-      } else if (featureTitle == "2D Planner" && result is Map<String, dynamic>) {
-        ref.read(weddingProjectProvider.notifier).updatePlannerLayout(
-              layoutSummary: result['layoutSummary'] as String? ?? "Custom Layout",
+      } else if (featureTitle == "2D Planner" &&
+          result is Map<String, dynamic>) {
+        ref
+            .read(weddingProjectProvider.notifier)
+            .updatePlannerLayout(
+              layoutSummary:
+                  result['layoutSummary'] as String? ?? "Custom Layout",
               fee: (result['fee'] as num?)?.toDouble() ?? 800.0,
             );
-      } else if (featureTitle == "Invitations" && result is Map<String, dynamic>) {
-        ref.read(weddingProjectProvider.notifier).updateInvitation(
-              invitationName: result['invitationName'] as String? ?? "Selected Invitation",
+      } else if (featureTitle == "Invitations" &&
+          result is Map<String, dynamic>) {
+        ref
+            .read(weddingProjectProvider.notifier)
+            .updateInvitation(
+              invitationName:
+                  result['invitationName'] as String? ?? "Selected Invitation",
               fee: (result['fee'] as num?)?.toDouble() ?? 650.0,
             );
-      } else if (featureTitle == "F&B Catering" && result is Map<String, dynamic>) {
-        ref.read(weddingProjectProvider.notifier).updateCatering(
-              cateringPackage: result['cateringPackage'] as String? ?? "Selected Package",
+      } else if (featureTitle == "F&B Catering" &&
+          result is Map<String, dynamic>) {
+        ref
+            .read(weddingProjectProvider.notifier)
+            .updateCatering(
+              cateringPackage:
+                  result['cateringPackage'] as String? ?? "Selected Package",
               fee: (result['fee'] as num?)?.toDouble() ?? 5500.0,
             );
       }
@@ -100,6 +277,12 @@ class FeaturesHubScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final project = ref.watch(weddingProjectProvider);
+
+    final invitationDone =
+        project.isInvitationCompleted || project.invitationOptedOut;
+    final invitationInfo = project.invitationOptedOut
+        ? "Physical Invitations (Self-Managed)"
+        : project.selectedInvitationName;
 
     final features = [
       _FeatureCardData(
@@ -120,11 +303,14 @@ class FeaturesHubScreen extends ConsumerWidget {
       ),
       _FeatureCardData(
         title: "Digital Invitations",
-        subtitle: "Pick e-invites & track RSVPs",
+        subtitle: project.invitationOptedOut
+            ? "Using physical / printed invitations"
+            : "Pick e-invites & track RSVPs",
         icon: Icons.mark_email_unread_rounded,
         screen: const InvitationGalleryScreen(),
-        isCompleted: project.isInvitationCompleted,
-        selectedInfo: project.selectedInvitationName,
+        isCompleted: invitationDone,
+        selectedInfo: invitationInfo,
+        isOptedOut: project.invitationOptedOut,
       ),
       _FeatureCardData(
         title: "F&B Catering",
@@ -178,10 +364,7 @@ class FeaturesHubScreen extends ConsumerWidget {
             const SizedBox(height: 4),
             const Text(
               "Manage and set up all core parts of your wedding celebration.",
-              style: TextStyle(
-                fontSize: 13,
-                color: AppColors.slate500,
-              ),
+              style: TextStyle(fontSize: 13, color: AppColors.slate500),
             ),
             const SizedBox(height: 20),
 
@@ -262,7 +445,26 @@ class FeaturesHubScreen extends ConsumerWidget {
                                     ),
                                   ),
                                   const SizedBox(width: 8),
-                                  if (feature.isCompleted)
+                                  if (feature.isOptedOut ?? false)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFE3F0E9),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: const Text(
+                                        "PHYSICAL",
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w800,
+                                          color: AppColors.sage,
+                                        ),
+                                      ),
+                                    )
+                                  else if (feature.isCompleted)
                                     Container(
                                       padding: const EdgeInsets.symmetric(
                                         horizontal: 8,
@@ -384,8 +586,8 @@ class FeaturesHubScreen extends ConsumerWidget {
                   color: isPaid
                       ? AppColors.sage
                       : (project.isFullyCompleted
-                          ? AppColors.pinkPrimary
-                          : Colors.white.withValues(alpha: 0.15)),
+                            ? AppColors.pinkPrimary
+                            : Colors.white.withValues(alpha: 0.15)),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
@@ -437,7 +639,9 @@ class FeaturesHubScreen extends ConsumerWidget {
                 );
               },
               icon: Icon(
-                isPaid ? Icons.receipt_long_rounded : Icons.shopping_bag_rounded,
+                isPaid
+                    ? Icons.receipt_long_rounded
+                    : Icons.shopping_bag_rounded,
                 size: 18,
               ),
               label: Text(
@@ -462,6 +666,7 @@ class _FeatureCardData {
   final Widget screen;
   final bool isCompleted;
   final String? selectedInfo;
+  final bool? isOptedOut;
 
   _FeatureCardData({
     required this.title,
@@ -470,5 +675,6 @@ class _FeatureCardData {
     required this.screen,
     required this.isCompleted,
     this.selectedInfo,
+    this.isOptedOut,
   });
 }

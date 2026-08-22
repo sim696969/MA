@@ -637,9 +637,121 @@ class _InvitationGalleryScreenState
     }
   }
 
+  Future<void> _handleOptOut() async {
+    final shouldOptOut = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: Colors.black, width: 1.5),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: AppColors.navy,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.mail_outline,
+                color: Colors.white,
+                size: 18,
+              ),
+            ),
+            const SizedBox(width: 10),
+            const Text(
+              "Skip Digital Invitations?",
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+          ],
+        ),
+        content: const Text(
+          "If you're inviting guests physically (printed cards, in-person, etc.), you can skip the digital invitation feature.\n\nThis will mark the invitation step as complete with a RM 0 fee, and no templates or guest emails are required.\n\nYou can undo this later.",
+          style: TextStyle(color: Colors.black87, fontSize: 13, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            style: TextButton.styleFrom(foregroundColor: Colors.black54),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.navy,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: const Text("Yes, Use Physical Invitations"),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldOptOut == true && mounted) {
+      final result = await ref
+          .read(weddingProjectProvider.notifier)
+          .optOutOfInvitation();
+
+      if (!mounted) return;
+      if (result.type == PaymentModificationType.refundDue) {
+        context.showTopRightWarning(
+          'Refund of RM ${result.amount.toStringAsFixed(2)} will be processed.',
+        );
+      } else {
+        context.showTopRightSuccess(
+          'Invitation step marked as "Physical Invitations".',
+        );
+      }
+      Navigator.of(context).pop();
+    }
+  }
+
+  Future<void> _handleUndoOptOut() async {
+    final shouldUndo = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text("Undo Skip Invitations?"),
+        content: const Text(
+          "Do you want to enable digital invitations again?\n\nYou'll need to select a template and add guests to complete this step.",
+          style: TextStyle(color: Colors.black87, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            child: const Text("Yes, Use Digital Invitations"),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldUndo == true && mounted) {
+      await ref.read(weddingProjectProvider.notifier).undoInvitationOptOut();
+      if (!mounted) return;
+      context.showTopRightSuccess(
+        'Digital invitations re-enabled. Please select a template to continue.',
+      );
+      setState(() {});
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final guestsCount = _localGuests.length;
+    final project = ref.watch(weddingProjectProvider);
+    final isOptedOut = project.invitationOptedOut;
 
     return Scaffold(
       backgroundColor: AppColors.backgroundLight,
@@ -679,6 +791,14 @@ class _InvitationGalleryScreenState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Opt-Out Banner / Section
+              if (isOptedOut) ...[
+                _buildOptedOutBanner(),
+                const SizedBox(height: 20),
+              ] else ...[
+                _buildOptOutOption(),
+                const SizedBox(height: 20),
+              ],
               // Header Summary / Counter Badge
               _buildHeaderCounter(guestsCount),
               const SizedBox(height: 24),
@@ -701,6 +821,158 @@ class _InvitationGalleryScreenState
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildOptOutOption() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF8E1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFFC107)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: const BoxDecoration(
+              color: Color(0xFFFFC107),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.how_to_reg_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "INVITING GUESTS PHYSICALLY?",
+                  style: GoogleFonts.inter(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 12,
+                    color: const Color(0xFF6D4C41),
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  "If you're using printed cards or word-of-mouth, you can skip digital invitations and mark this step done.",
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: const Color(0xFF6D4C41),
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          SizedBox(
+            height: 38,
+            child: OutlinedButton(
+              onPressed: _handleOptOut,
+              style: OutlinedButton.styleFrom(
+                backgroundColor: Colors.white,
+                side: const BorderSide(color: Color(0xFF6D4C41), width: 1.5),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                foregroundColor: const Color(0xFF6D4C41),
+              ),
+              child: Text(
+                "SKIP",
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOptedOutBanner() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE8F5E9),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.sage),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: const BoxDecoration(
+              color: AppColors.sage,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.check_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "USING PHYSICAL INVITATIONS",
+                  style: GoogleFonts.inter(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 12,
+                    color: const Color(0xFF2E7D32),
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  "This step is marked complete. RM 0 fee applied.",
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: const Color(0xFF2E7D32),
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          SizedBox(
+            height: 38,
+            child: OutlinedButton(
+              onPressed: _handleUndoOptOut,
+              style: OutlinedButton.styleFrom(
+                backgroundColor: Colors.white,
+                side: const BorderSide(color: Color(0xFF2E7D32), width: 1.5),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                foregroundColor: const Color(0xFF2E7D32),
+              ),
+              child: Text(
+                "UNDO",
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1221,16 +1493,16 @@ class _InvitationGalleryScreenState
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
         decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.pinkBorder),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.pinkBorder),
         ),
         child: Column(
           children: [
             const Icon(
               Icons.mail_outline_rounded,
               size: 48,
-            color: AppColors.blush,
+              color: AppColors.blush,
             ),
             const SizedBox(height: 12),
             Text(

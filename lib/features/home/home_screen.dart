@@ -70,9 +70,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             color: AppColors.slate900,
           ),
         ),
-        content: const Text(
-          "Are you sure you want to log out of Wedify?",
-        ),
+        content: const Text("Are you sure you want to log out of Wedify?"),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -557,6 +555,148 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
+  Future<void> _handleInvitationChoice(
+    BuildContext context,
+    Widget screen,
+  ) async {
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: AppColors.pinkBorder, width: 1.5),
+        ),
+        title: Center(
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: const BoxDecoration(
+                  color: AppColors.pinkLight,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.mark_email_unread_rounded,
+                  color: AppColors.pinkPrimary,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                "Invitation Options",
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
+              ),
+            ],
+          ),
+        ),
+        content: const Text(
+          "How would you like to invite your guests?\n\nChoose digital invitations for email/RSVP tracking, or skip if you're using printed cards or word-of-mouth.",
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: AppColors.slate700,
+            fontSize: 13,
+            height: 1.5,
+          ),
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => Navigator.pop(dialogCtx, 'physical'),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: AppColors.sage, width: 1.5),
+                foregroundColor: AppColors.sage,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              icon: const Icon(Icons.how_to_reg_rounded, size: 18),
+              label: const Text(
+                "Use Physical Invitations",
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => Navigator.pop(dialogCtx, 'digital'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.pinkPrimary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                elevation: 0,
+              ),
+              icon: const Icon(Icons.email_rounded, size: 18),
+              label: const Text(
+                "Browse Digital Invitations",
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (!context.mounted) return;
+
+    if (choice == 'physical') {
+      final result = await ref
+          .read(weddingProjectProvider.notifier)
+          .optOutOfInvitation();
+      if (!context.mounted) return;
+      if (result.type == PaymentModificationType.refundDue) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: AppColors.sage,
+            content: Text(
+              'Refund of RM ${result.amount.toStringAsFixed(2)} will be processed.',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: AppColors.sage,
+            content: Text(
+              'Invitation step marked as Physical Invitations (RM 0).',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        );
+      }
+    } else if (choice == 'digital') {
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => screen),
+      );
+      if (result != null && result is Map<String, dynamic> && context.mounted) {
+        ref
+            .read(weddingProjectProvider.notifier)
+            .updateInvitation(
+              invitationName:
+                  result['invitationName'] as String? ?? "Selected Invitation",
+              fee: (result['fee'] as num?)?.toDouble() ?? 650.0,
+            );
+      }
+    }
+  }
+
   void _handleFeatureClick(
     BuildContext context,
     WeddingProject project,
@@ -591,6 +731,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
           actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+              },
+              child: const Text(
+                "Cancel",
+                style: TextStyle(color: AppColors.slate700),
+              ),
+            ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.pinkPrimary,
@@ -603,13 +752,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 _showStartProjectModal(context, project);
               },
               child: const Text(
-                "Set Date & Time",
+                "Set Time",
                 style: TextStyle(color: Colors.white),
               ),
             ),
           ],
         ),
       );
+      return;
+    }
+
+    if (featureTitle == "Invitations") {
+      _handleInvitationChoice(context, screen);
       return;
     }
 
@@ -694,7 +848,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => const NotificationCenterScreen(),
+                                builder: (_) =>
+                                    const NotificationCenterScreen(),
                               ),
                             );
                           },
@@ -1210,7 +1365,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             children: [
               _buildTaskStepBadge("Venue", project.isVenueCompleted),
               _buildTaskStepBadge("Planner", project.isPlannerCompleted),
-              _buildTaskStepBadge("Invitations", project.isInvitationCompleted),
+              _buildTaskStepBadge(
+                "Invitations",
+                project.isInvitationCompleted || project.invitationOptedOut,
+              ),
               _buildTaskStepBadge("Catering", project.isCateringCompleted),
             ],
           ),
@@ -1261,7 +1419,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         "Invitations",
         Icons.mark_email_unread_rounded,
         const InvitationGalleryScreen(),
-        project.isInvitationCompleted,
+        project.isInvitationCompleted || project.invitationOptedOut,
       ),
       _FeatureConfig(
         "F&B Catering",
@@ -1488,9 +1646,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         lastDay: DateTime.now().add(const Duration(days: 1095)),
         focusedDay: _focusedDay,
         calendarFormat: CalendarFormat.month,
-        availableCalendarFormats: const {
-          CalendarFormat.month: 'Month',
-        },
+        availableCalendarFormats: const {CalendarFormat.month: 'Month'},
         sixWeekMonthsEnforced: false,
         rowHeight: 46,
         daysOfWeekHeight: 28,

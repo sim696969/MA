@@ -443,9 +443,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
     final venueFee = project.venueFee > 0 ? project.venueFee : 4500.00;
     final plannerFee = project.plannerFee > 0 ? project.plannerFee : 800.00;
-    final invitationFee = project.invitationFee > 0
-        ? project.invitationFee
-        : 650.00;
+    final invitationFee = project.invitationOptedOut
+        ? 0.00
+        : (project.invitationFee > 0 ? project.invitationFee : 650.00);
     final cateringFee = project.cateringFee > 0 ? project.cateringFee : 5500.00;
 
     final subtotal = venueFee + plannerFee + invitationFee + cateringFee;
@@ -469,9 +469,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         leading: Padding(
           padding: const EdgeInsets.only(left: 12),
           child: Center(
-            child: WedifyBackButton(
-              onPressed: _handleBackNavigation,
-            ),
+            child: WedifyBackButton(onPressed: _handleBackNavigation),
           ),
         ),
         title: Text(
@@ -611,11 +609,14 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                     ),
                     const Divider(height: 24, color: Colors.black12),
                     _buildServiceRow(
-                      icon: Icons.mark_email_unread_rounded,
+                      icon: project.invitationOptedOut
+                          ? Icons.how_to_reg_rounded
+                          : Icons.mark_email_unread_rounded,
                       title: '3. Invitation Cards',
-                      subtitle:
-                          project.selectedInvitationName ??
-                          'Luxury Rose Gold Suite (200 pcs)',
+                      subtitle: project.invitationOptedOut
+                          ? 'Physical Invitations (Self-Managed)'
+                          : (project.selectedInvitationName ??
+                                'Luxury Rose Gold Suite (200 pcs)'),
                       price: fmt.format(invitationFee),
                     ),
                     const Divider(height: 24, color: Colors.black12),
@@ -801,7 +802,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               const SizedBox(height: 28),
 
               if (isBalancePayment) ...[
-                _buildCostRow('Previously Paid', fmt.format(project.amountPaid)),
+                _buildCostRow(
+                  'Previously Paid',
+                  fmt.format(project.amountPaid),
+                ),
                 const SizedBox(height: 6),
                 _buildCostRow('New Total', fmt.format(grandTotal)),
                 const SizedBox(height: 6),
@@ -1024,7 +1028,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           const SizedBox(height: 6),
           _buildReceiptRow(
             'Invitations',
-            project.selectedInvitationName ?? 'Digital & Printed Suite',
+            project.invitationOptedOut
+                ? 'Physical Invitations (Self-Managed - RM 0)'
+                : (project.selectedInvitationName ?? 'Digital & Printed Suite'),
           ),
           const SizedBox(height: 6),
           _buildReceiptRow(
